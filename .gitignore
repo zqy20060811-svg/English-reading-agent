@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# 虚拟环境
+venv/
+.venv/
+
+# 环境变量与密钥
+.env
+
+# 爬虫相关（本地保留，不入库）
+app/crawler/
+
+# 爬取的书籍数据（本地保留，不入库）
+data/
+
+# IDE
+.idea/
+.vscode/
+*.code-workspace
+
+# 日志与临时文件
+*.log
+*.tmp
