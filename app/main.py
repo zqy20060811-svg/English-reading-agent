@@ -6,7 +6,7 @@ from app.api.routes.ask import router as ask_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.book import router as book_router
 from app.db.database import Base, engine
-from app.models import book, user  # noqa: F401 确保模型注册到 metadata
+from app.models import book, book_chapter, reading_progress, user  # noqa: F401 确保模型注册到 metadata
 from app.schemas.user import UserOut
 from app.services.user_service import get_current_user
 
