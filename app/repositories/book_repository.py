@@ -10,6 +10,9 @@ class BookRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def get_by_id(self, book_id: int) -> Book | None:
+        return await self.db.get(Book, book_id)
+
     async def get_by_gutenberg_id(self, gutenberg_id: int) -> Book | None:
         result = await self.db.execute(
             select(Book).where(Book.gutenberg_id == gutenberg_id)

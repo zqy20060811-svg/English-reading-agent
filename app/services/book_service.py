@@ -9,6 +9,7 @@ from app.crawler.scraper import DEFAULT_OUTPUT_DIR
 from app.db.database import get_db
 from app.models.book import Book
 from app.repositories.book_repository import BookRepository
+from app.repositories.chapter_repository import ChapterRepository
 from app.schemas.book import BookSyncResult
 
 
@@ -17,6 +18,20 @@ class BookService:
 
     def __init__(self, db: AsyncSession):
         self.repo = BookRepository(db)
+        self.chapter_repo = ChapterRepository(db)
+
+    async def list_chapters(self, book_id: int) -> tuple[Book, list]:
+        """返回书籍与章节目录；书籍不存在或未入库章节时返回 404。"""
+        book = await self.repo.get_by_id(book_id)
+        if book is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"书籍 {book_id} 不存在")
+        chapters = await self.chapter_repo.list_by_book(book_id)
+        if not chapters:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                f"书籍「{book.title}」暂无章节数据，请先运行 python -m app.scripts.load_chapters",
+            )
+        return book, chapters
 
     async def search_by_title(self, title: str) -> list[Book]:
         """按书名查询书籍简介，未命中时返回 404。"""

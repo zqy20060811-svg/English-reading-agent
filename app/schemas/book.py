@@ -27,3 +27,14 @@ class BookSyncResult(BaseModel):
     total_found: int   # 本地目录中发现的书籍数
     created: int       # 新增入库数量
     updated: int       # 更新数量
+
+
+class ChapterOut(BaseModel):
+    """章节目录项（不含正文）"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    chapter_index: int
+    title: str
+    word_count: int
