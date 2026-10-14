@@ -38,3 +38,9 @@ class ChapterOut(BaseModel):
     chapter_index: int
     title: str
     word_count: int
+
+
+class ChapterDetailOut(ChapterOut):
+    """章节详情（含正文）"""
+
+    content: str

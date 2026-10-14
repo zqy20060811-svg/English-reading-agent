@@ -22,5 +22,7 @@ class UserReadingProgress(Base):
     char_offset: Mapped[int] = mapped_column(Integer, default=0)  # 章内字符偏移
     percent: Mapped[float] = mapped_column(Float, default=0.0)  # 全书阅读百分比
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )

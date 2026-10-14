@@ -26,3 +26,19 @@ class ChapterRepository:
             BookChapter(id=r.id, chapter_index=r.chapter_index, title=r.title, word_count=r.word_count)
             for r in result.all()
         ]
+
+    async def get_by_book_and_index(self, book_id: int, chapter_index: int) -> BookChapter | None:
+        """取指定章节（含正文）"""
+        result = await self.db.execute(
+            select(BookChapter)
+            .where(BookChapter.book_id == book_id, BookChapter.chapter_index == chapter_index)
+        )
+        return result.scalar_one_or_none()
+
+    async def exists(self, book_id: int, chapter_index: int) -> bool:
+        result = await self.db.execute(
+            select(BookChapter.id)
+            .where(BookChapter.book_id == book_id, BookChapter.chapter_index == chapter_index)
+        )
+        return result.scalar_one_or_none() is not None
+

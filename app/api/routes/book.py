@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 
-from app.schemas.book import BookOut, BookSyncResult, ChapterOut
+from app.schemas.book import BookOut, BookSyncResult, ChapterDetailOut, ChapterOut
 from app.services.book_service import BookService, get_book_service
 from app.services.user_service import get_current_user
 
@@ -29,6 +29,17 @@ async def list_chapters(
     """获取一本书的章节目录（按章节序号排序，不含正文）"""
     book, chapters = await service.list_chapters(book_id)
     return chapters
+
+
+@router.get("/{book_id}/chapters/{chapter_index}", response_model=ChapterDetailOut)
+async def get_chapter(
+    book_id: int,
+    chapter_index: int,
+    service: BookService = Depends(get_book_service),
+):
+    """获取指定章节正文"""
+    book, chapter = await service.get_chapter(book_id, chapter_index)
+    return chapter
 
 
 @router.post("/sync", response_model=BookSyncResult)

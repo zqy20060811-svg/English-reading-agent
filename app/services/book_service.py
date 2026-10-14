@@ -33,6 +33,19 @@ class BookService:
             )
         return book, chapters
 
+    async def get_chapter(self, book_id: int, chapter_index: int):
+        """获取指定章节详情（含正文）；书籍或章节不存在时返回 404。"""
+        book = await self.repo.get_by_id(book_id)
+        if book is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"书籍 {book_id} 不存在")
+        chapter = await self.chapter_repo.get_by_book_and_index(book_id, chapter_index)
+        if chapter is None:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                f"书籍「{book.title}」不存在第 {chapter_index} 章",
+            )
+        return book, chapter
+
     async def search_by_title(self, title: str) -> list[Book]:
         """按书名查询书籍简介，未命中时返回 404。"""
         books = await self.repo.search_by_title(title.strip())
