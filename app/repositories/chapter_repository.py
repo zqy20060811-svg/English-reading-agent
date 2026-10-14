@@ -35,10 +35,3 @@ class ChapterRepository:
         )
         return result.scalar_one_or_none()
 
-    async def exists(self, book_id: int, chapter_index: int) -> bool:
-        result = await self.db.execute(
-            select(BookChapter.id)
-            .where(BookChapter.book_id == book_id, BookChapter.chapter_index == chapter_index)
-        )
-        return result.scalar_one_or_none() is not None
-
