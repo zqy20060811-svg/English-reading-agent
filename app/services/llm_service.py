@@ -14,27 +14,56 @@ SYSTEM_PROMPT = (
 )
 
 
+# 章节问答用的系统提示词：要求基于给定原文回答
+READING_SYSTEM_PROMPT = (
+    "You are an English reading assistant helping a reader understand a book chapter. "
+    "Answer the user's question based on the chapter text provided below. "
+    "Quote the original text when helpful. "
+    "Reply in the same language as the user's question."
+)
+
+# 单章正文最长注入字符数（防止超长章节超出模型上下文，超出则截断保留开头）
+MAX_CONTEXT_CHARS = 50000
+
+
 class LLMService:
     """DeepSeek 大模型调用业务逻辑"""
 
     async def ask(self, question: str) -> str:
         """调用 DeepSeek chat 接口回答问题。"""
+        return await run_in_threadpool(
+            self._request_chat,
+            self._build_payload(SYSTEM_PROMPT, question),
+        )
+
+    async def ask_with_context(self, question: str, context: str) -> str:
+        """基于给定上下文（如章节原文）回答问题。"""
+        if not context:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "上下文内容为空")
+        context = context[:MAX_CONTEXT_CHARS]
+        user_content = (
+            f"Chapter text:\n\n{context}\n\n---\n\nQuestion: {question}"
+        )
+        return await run_in_threadpool(
+            self._request_chat,
+            self._build_payload(READING_SYSTEM_PROMPT, user_content),
+        )
+
+    @staticmethod
+    def _build_payload(system_prompt: str, user_content: str) -> dict:
         settings = get_settings()
         if not settings.DEEPSEEK_API_KEY:
             raise HTTPException(
                 status.HTTP_503_SERVICE_UNAVAILABLE,
                 "DeepSeek API Key 未配置，请在 .env 中填写 DEEPSEEK_API_KEY",
             )
-
-        payload = {
+        return {
             "model": settings.DEEPSEEK_MODEL,
             "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": question},
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
             ],
         }
-        # requests 为同步库，放入线程池避免阻塞事件循环
-        return await run_in_threadpool(self._request_chat, payload)
 
     @staticmethod
     def _request_chat(payload: dict) -> str:

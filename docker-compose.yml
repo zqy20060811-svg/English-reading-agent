@@ -1,6 +1,6 @@
 services:
   pgsql:
-    image: postgres:16
+    image: pgvector/pgvector:pg16   # postgres:16 + pgvector 向量扩展
     environment:
       POSTGRES_DB: english_reading_agent
       POSTGRES_USER: admin
