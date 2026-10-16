@@ -8,7 +8,7 @@ from app.db.database import Base
 class BookChunk(Base):
     """文本块表：章节正文递归字符分块后的语义块，用于 RAG 向量检索。
 
-    embedding 模型：BAAI/bge-small-en-v1.5（384 维，英文）；
+    embedding 模型：BAAI/bge-m3（1024 维，中英文）；
     分块参数：chunk_size=800 字符、overlap=100 字符。
     """
 
@@ -20,4 +20,4 @@ class BookChunk(Base):
     chapter_id: Mapped[int] = mapped_column(ForeignKey("book_chapters.id"), index=True)
     chunk_index: Mapped[int] = mapped_column(Integer)  # 章内块序号，从 0 开始
     chunk_text: Mapped[str] = mapped_column(Text)  # 原文逐字片段
-    embedding = Column(Vector(384), nullable=True)  # BAAI/bge-small-en-v1.5 输出维度 384
+    embedding = Column(Vector(1024), nullable=True)  # BAAI/bge-m3 输出维度 1024（中英文）

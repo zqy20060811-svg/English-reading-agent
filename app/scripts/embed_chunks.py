@@ -1,4 +1,4 @@
-"""命令行：为 book_chunks 中缺 embedding 的块生成向量（BAAI/bge-small-en-v1.5 本地推理）。
+"""命令行：为 book_chunks 中缺 embedding 的块生成向量（BAAI/bge-m3 本地推理，1024 维中英文）。
 
 用法：python -m app.scripts.embed_chunks [--limit N]
 """
@@ -10,8 +10,8 @@ from app.db.database import AsyncSessionLocal
 from app.models.book import Book  # noqa: F401 确保外键表注册
 from app.models.book_chunk import BookChunk
 
-MODEL_NAME = "BAAI/bge-small-en-v1.5"
-BATCH_SIZE = 64
+MODEL_NAME = "BAAI/bge-m3"
+BATCH_SIZE = 32
 
 
 def get_model():
@@ -60,7 +60,7 @@ async def main() -> None:
     if "--limit" in sys.argv:
         limit = int(sys.argv[sys.argv.index("--limit") + 1])
     n = await embed_chunks(limit)
-    print(f"embedding 生成完成：{n} 块（模型 {MODEL_NAME}，384 维，已归一化）")
+    print(f"embedding 生成完成：{n} 块（模型 {MODEL_NAME}，1024 维，已归一化）")
 
 
 if __name__ == "__main__":
