@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
+from sqlalchemy import text
 
 from app.api.routes.ask import router as ask_router
 from app.api.routes.auth import router as auth_router
@@ -14,8 +15,9 @@ from app.services.user_service import get_current_user
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 简化处理：启动时自动建表；生产环境建议改用 Alembic 迁移
+    # 简化处理：启动时先启用 pgvector 扩展再自动建表；生产环境建议改用 Alembic 迁移
     async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
     yield
 
