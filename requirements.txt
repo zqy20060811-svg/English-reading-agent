@@ -10,3 +10,5 @@ PyJWT==2.10.1
 redis==5.2.1
 python-multipart==0.0.20
 requests==2.32.3
+pgvector==0.5.1
+sentence-transformers==6.1.0

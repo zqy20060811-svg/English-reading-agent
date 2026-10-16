@@ -6,10 +6,10 @@ from app.db.database import Base
 
 
 class BookChunk(Base):
-    """文本块表：章节正文切分后的语义块，用于后续 RAG 向量检索。
+    """文本块表：章节正文递归字符分块后的语义块，用于 RAG 向量检索。
 
-    注意：embedding 维度与所选 embedding 模型必须一致，当前按 bge-m3 预留 1024 维。
-    向量数据后续再生成写入，建表阶段 embedding 允许为空。
+    embedding 模型：BAAI/bge-small-en-v1.5（384 维，英文）；
+    分块参数：chunk_size=800 字符、overlap=100 字符。
     """
 
     __tablename__ = "book_chunks"
@@ -20,4 +20,4 @@ class BookChunk(Base):
     chapter_id: Mapped[int] = mapped_column(ForeignKey("book_chapters.id"), index=True)
     chunk_index: Mapped[int] = mapped_column(Integer)  # 章内块序号，从 0 开始
     chunk_text: Mapped[str] = mapped_column(Text)  # 原文逐字片段
-    embedding = Column(Vector(1024), nullable=True)  # 文本块向量，后续填充
+    embedding = Column(Vector(384), nullable=True)  # BAAI/bge-small-en-v1.5 输出维度 384
