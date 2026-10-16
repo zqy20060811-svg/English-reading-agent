@@ -1,14 +1,7 @@
-"""文本分块业务逻辑：递归字符分块 + book_chunks 入库（幂等）。
+"""递归字符分块纯函数（离线管道用，不含数据库逻辑）。
 
 分块参数：chunk_size=800 字符、overlap=100 字符，优先保留段落/句子等自然边界。
 """
-
-from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.models.book import Book  # noqa: F401 确保 books 表注册，供 book_chunks 外键解析
-from app.models.book_chapter import BookChapter
-from app.models.book_chunk import BookChunk
 
 CHUNK_SIZE = 800  # 目标块长（字符）
 CHUNK_OVERLAP = 100  # 相邻块重叠（字符）
@@ -83,32 +76,3 @@ def _merge(pieces: list[str], sep: str, chunk_size: int, overlap: int) -> list[s
         chunks[-2] = chunks[-2] + sep + chunks[-1]
         chunks.pop()
     return chunks
-
-
-class ChunkService:
-    """分块与入库服务"""
-
-    def __init__(self, db: AsyncSession):
-        self.db = db
-
-    async def chunk_all_books(self) -> dict:
-        """对全部章节重新分块并入库：先清空 book_chunks 再写入（幂等全量重建）。"""
-        rows = (
-            (await self.db.execute(select(BookChapter.id, BookChapter.book_id, BookChapter.content)))
-            .all()
-        )
-        total = 0
-        for chapter_id, book_id, content in rows:
-            await self.db.execute(delete(BookChunk).where(BookChunk.chapter_id == chapter_id))
-            for idx, chunk_text in enumerate(recursive_split(content)):
-                self.db.add(
-                    BookChunk(
-                        book_id=book_id,
-                        chapter_id=chapter_id,
-                        chunk_index=idx,
-                        chunk_text=chunk_text,
-                    )
-                )
-                total += 1
-        await self.db.commit()
-        return {"chapters": len(rows), "chunks": total}
