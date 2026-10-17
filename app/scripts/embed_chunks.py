@@ -7,17 +7,11 @@ import asyncio
 from sqlalchemy import select
 
 from app.db.database import AsyncSessionLocal
+from app.embedding import MODEL_NAME, encode_texts
 from app.models.book import Book  # noqa: F401 确保外键表注册
 from app.models.book_chunk import BookChunk
 
-MODEL_NAME = "BAAI/bge-m3"
 BATCH_SIZE = 32
-
-
-def get_model():
-    from sentence_transformers import SentenceTransformer
-
-    return SentenceTransformer(MODEL_NAME)
 
 
 async def embed_chunks(limit: int | None = None) -> int:
@@ -30,7 +24,6 @@ async def embed_chunks(limit: int | None = None) -> int:
         if not ids:
             return 0
 
-        model = get_model()
         done = 0
         for start in range(0, len(ids), BATCH_SIZE):
             batch_ids = ids[start : start + BATCH_SIZE]
@@ -40,12 +33,12 @@ async def embed_chunks(limit: int | None = None) -> int:
                 )
             ).all()
             texts = [r.chunk_text for r in rows]
-            vectors = model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
+            vectors = encode_texts(texts)  # 共用 app.embedding 单例模型
             for (chunk_id, _), vec in zip(rows, vectors):
                 await s.execute(
                     BookChunk.__table__.update()
                     .where(BookChunk.id == chunk_id)
-                    .values(embedding=vec.tolist())
+                    .values(embedding=vec)
                 )
             await s.commit()
             done += len(rows)

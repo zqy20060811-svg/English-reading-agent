@@ -14,12 +14,17 @@ SYSTEM_PROMPT = (
 )
 
 
-# 章节问答用的系统提示词：要求基于给定原文回答
+# RAG 问答用的系统提示词：要求只基于检索证据回答，证据不足时明确说明
 READING_SYSTEM_PROMPT = (
-    "You are an English reading assistant helping a reader understand a book chapter. "
-    "Answer the user's question based on the chapter text provided below. "
-    "Quote the original text when helpful. "
-    "Reply in the same language as the user's question."
+    "You are an English reading assistant. The user is reading a book, and some "
+    "relevant excerpts retrieved from the book are provided below.\n"
+    "Rules:\n"
+    "1. Answer the question based ONLY on the excerpts provided. "
+    "Quote the original text when helpful.\n"
+    "2. If the excerpts do not contain enough information to answer, say so "
+    "explicitly (e.g. \"提供的片段中没有足够信息\") and briefly explain what is "
+    "missing. Do NOT invent or supplement content that is not in the excerpts.\n"
+    "3. Reply in the same language as the user's question."
 )
 
 # 单章正文最长注入字符数（防止超长章节超出模型上下文，超出则截断保留开头）
@@ -37,12 +42,12 @@ class LLMService:
         )
 
     async def ask_with_context(self, question: str, context: str) -> str:
-        """基于给定上下文（如章节原文）回答问题。"""
+        """基于给定上下文（如 RAG 检索的证据片段）回答问题。"""
         if not context:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "上下文内容为空")
         context = context[:MAX_CONTEXT_CHARS]
         user_content = (
-            f"Chapter text:\n\n{context}\n\n---\n\nQuestion: {question}"
+            f"Retrieved excerpts from the book:\n\n{context}\n\n---\n\nQuestion: {question}"
         )
         return await run_in_threadpool(
             self._request_chat,
