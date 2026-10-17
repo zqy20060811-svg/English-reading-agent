@@ -12,3 +12,4 @@ python-multipart==0.0.20
 requests==2.32.3
 pgvector==0.5.1
 sentence-transformers==6.1.0
+pytest==9.0.2

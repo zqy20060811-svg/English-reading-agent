@@ -1,4 +1,4 @@
-"""RAG 检索业务逻辑：混合检索（向量路 + BM25 关键词路）→ RRF 融合 → 整理上下文。
+"""RAG 检索业务逻辑：混合检索（向量路 + PostgreSQL 全文检索 ts_rank 关键词路）→ RRF 融合 → 整理上下文。
 
 两路得分量纲不同（余弦距离 vs ts_rank），不直接相加，
 用 Reciprocal Rank Fusion（倒数排名融合）按排名合并候选。
@@ -29,18 +29,26 @@ class RetrievalResult:
     query: str
 
 
-def rrf_fuse(result_lists: list[list[ChunkHit]], top_k: int = TOP_K) -> list[ChunkHit]:
-    """倒数排名融合：score(chunk) = Σ 1/(RRF_K + rank)，rank 从 1 起。
+def rrf_fuse(
+    result_lists: list[list[ChunkHit]],
+    top_k: int = TOP_K,
+    weights: list[float] | tuple[float, ...] | None = None,
+) -> list[ChunkHit]:
+    """加权倒数排名融合：score(chunk) = Σ w_i / (RRF_K + rank_i)，rank 从 1 起。
 
     - 只看排名不看原始分，天然规避两路量纲不可比的问题
-    - 同一块被两路同时命中时得分叠加，天然排前
+    - weights 与 result_lists 一一对应；None 时全部权重 1.0
+    - 同一块被多路同时命中时得分叠加，天然排前
     - 融合后的 ChunkHit 保留各路原始分数（便于调试），顺序即融合排名
     """
+    if weights is None:
+        weights = [1.0] * len(result_lists)
+    assert len(weights) == len(result_lists), "权重数量须与结果列表一致"
     scores: dict[int, float] = {}
     hits: dict[int, ChunkHit] = {}
-    for results in result_lists:
+    for weight, results in zip(weights, result_lists):
         for rank, hit in enumerate(results, 1):
-            scores[hit.chunk_id] = scores.get(hit.chunk_id, 0.0) + 1.0 / (RRF_K + rank)
+            scores[hit.chunk_id] = scores.get(hit.chunk_id, 0.0) + weight / (RRF_K + rank)
             if hit.chunk_id not in hits:
                 hits[hit.chunk_id] = hit
             else:  # 合并两路的原始分数信息

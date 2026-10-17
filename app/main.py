@@ -19,7 +19,7 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
-        # BM25 关键词检索路的表达式 GIN 索引（表达式必须与查询中的完全一致才能命中索引）
+        # 全文检索（ts_rank）关键词路的表达式 GIN 索引（表达式必须与查询中的完全一致才能命中索引）
         await conn.execute(
             text(
                 "CREATE INDEX IF NOT EXISTS ix_book_chunks_fts "

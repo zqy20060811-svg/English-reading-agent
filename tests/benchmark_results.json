@@ -1,0 +1,252 @@
+{
+  "run_at": "2026-10-17T12:03:14.661558+00:00",
+  "metrics": {
+    "recall@5_vector": 0.9048,
+    "recall@5_hybrid": 0.8571,
+    "mrr_vector": 0.8111,
+    "mrr_hybrid": 0.8254,
+    "avg_latency_ms": 14.5
+  },
+  "rows": [
+    {
+      "id": "q1",
+      "category": "中文跨语言",
+      "question": "爱丽丝掉进了什么洞？",
+      "should_answer": true,
+      "ft_hits": 0,
+      "vec_rank": 1,
+      "hybrid_rank": 1,
+      "latency_ms": 36.0
+    },
+    {
+      "id": "q2",
+      "category": "中文跨语言",
+      "question": "三月兔和帽匠为什么觉得时间是停着的？",
+      "should_answer": true,
+      "ft_hits": 0,
+      "vec_rank": 1,
+      "hybrid_rank": 1,
+      "latency_ms": 6.8
+    },
+    {
+      "id": "q3",
+      "category": "中文跨语言",
+      "question": "红心王后下令砍掉所有人的头发生在哪场球赛上？",
+      "should_answer": true,
+      "ft_hits": 0,
+      "vec_rank": 1,
+      "hybrid_rank": 1,
+      "latency_ms": 7.9
+    },
+    {
+      "id": "q4",
+      "category": "中文跨语言",
+      "question": "斯克鲁奇的外甥是怎么劝他的？",
+      "should_answer": true,
+      "ft_hits": 0,
+      "vec_rank": 1,
+      "hybrid_rank": 1,
+      "latency_ms": 6.9
+    },
+    {
+      "id": "q5",
+      "category": "中文跨语言",
+      "question": "小气鬼蒂姆一家靠什么生活？",
+      "should_answer": true,
+      "ft_hits": 0,
+      "vec_rank": 1,
+      "hybrid_rank": 1,
+      "latency_ms": 5.8
+    },
+    {
+      "id": "q7",
+      "category": "中文跨语言",
+      "question": "弗兰肯斯坦用人体拼出了什么？",
+      "should_answer": true,
+      "ft_hits": 0,
+      "vec_rank": 0,
+      "hybrid_rank": 0,
+      "latency_ms": 9.0
+    },
+    {
+      "id": "q8",
+      "category": "中文跨语言",
+      "question": "白鲸船长为什么疯狂追捕白鲸？",
+      "should_answer": true,
+      "ft_hits": 0,
+      "vec_rank": 1,
+      "hybrid_rank": 1,
+      "latency_ms": 15.3
+    },
+    {
+      "id": "q9",
+      "category": "中文跨语言",
+      "question": "彼得潘是怎么飞进卧室的？",
+      "should_answer": true,
+      "ft_hits": 0,
+      "vec_rank": 1,
+      "hybrid_rank": 1,
+      "latency_ms": 7.5
+    },
+    {
+      "id": "q10",
+      "category": "中文跨语言",
+      "question": "绿野仙踪的多萝西被龙卷风吹到了哪里？",
+      "should_answer": true,
+      "ft_hits": 0,
+      "vec_rank": 0,
+      "hybrid_rank": 0,
+      "latency_ms": 6.5
+    },
+    {
+      "id": "q11",
+      "category": "英文定位",
+      "question": "Why does Scrooge hate Christmas?",
+      "should_answer": true,
+      "ft_hits": 10,
+      "vec_rank": 1,
+      "hybrid_rank": 1,
+      "latency_ms": 24.8
+    },
+    {
+      "id": "q12",
+      "category": "英文定位",
+      "question": "Where does Alice fall down and what is at the bottom?",
+      "should_answer": true,
+      "ft_hits": 10,
+      "vec_rank": 2,
+      "hybrid_rank": 1,
+      "latency_ms": 31.8
+    },
+    {
+      "id": "q13",
+      "category": "英文定位",
+      "question": "How did the White Rabbit lose his gloves and fan?",
+      "should_answer": true,
+      "ft_hits": 10,
+      "vec_rank": 1,
+      "hybrid_rank": 1,
+      "latency_ms": 11.9
+    },
+    {
+      "id": "q14",
+      "category": "英文定位",
+      "question": "What bargain does the Cheshire Cat offer about directions?",
+      "should_answer": true,
+      "ft_hits": 10,
+      "vec_rank": 1,
+      "hybrid_rank": 1,
+      "latency_ms": 11.1
+    },
+    {
+      "id": "q15",
+      "category": "英文定位",
+      "question": "Who is accused of stealing the tarts?",
+      "should_answer": true,
+      "ft_hits": 6,
+      "vec_rank": 1,
+      "hybrid_rank": 1,
+      "latency_ms": 7.1
+    },
+    {
+      "id": "q16",
+      "category": "英文定位",
+      "question": "What does the Ghost of Christmas Present show Scrooge?",
+      "should_answer": true,
+      "ft_hits": 10,
+      "vec_rank": 1,
+      "hybrid_rank": 1,
+      "latency_ms": 25.4
+    },
+    {
+      "id": "q17",
+      "category": "英文定位",
+      "question": "What warning does Marley's ghost give Scrooge?",
+      "should_answer": true,
+      "ft_hits": 10,
+      "vec_rank": 5,
+      "hybrid_rank": 0,
+      "latency_ms": 24.1
+    },
+    {
+      "id": "q18",
+      "category": "人物关系",
+      "question": "谁是爱丽丝在审判中遇到的三位牌园丁？",
+      "should_answer": true,
+      "ft_hits": 0,
+      "vec_rank": 1,
+      "hybrid_rank": 1,
+      "latency_ms": 6.6
+    },
+    {
+      "id": "q19",
+      "category": "人物关系",
+      "question": "What relation is Scrooge to Fred?",
+      "should_answer": true,
+      "ft_hits": 10,
+      "vec_rank": 1,
+      "hybrid_rank": 1,
+      "latency_ms": 22.5
+    },
+    {
+      "id": "q20",
+      "category": "人物关系",
+      "question": "Who adopts the narrator in Treasure Island and who hides in the apple barrel?",
+      "should_answer": true,
+      "ft_hits": 10,
+      "vec_rank": 1,
+      "hybrid_rank": 1,
+      "latency_ms": 21.2
+    },
+    {
+      "id": "q21",
+      "category": "词汇专名",
+      "question": "' Ebenezer' 这个名字在书里指谁？",
+      "should_answer": true,
+      "ft_hits": 7,
+      "vec_rank": 3,
+      "hybrid_rank": 1,
+      "latency_ms": 8.8
+    },
+    {
+      "id": "q22",
+      "category": "词汇专名",
+      "question": "What does 'curiouser' mean in Alice's words?",
+      "should_answer": true,
+      "ft_hits": 10,
+      "vec_rank": 1,
+      "hybrid_rank": 3,
+      "latency_ms": 26.2
+    },
+    {
+      "id": "q23",
+      "category": "无答案",
+      "question": "鲁迅的原名是什么？",
+      "should_answer": false,
+      "ft_hits": 0,
+      "vec_rank": 0,
+      "hybrid_rank": 0,
+      "latency_ms": 7.5
+    },
+    {
+      "id": "q24",
+      "category": "无答案",
+      "question": "What is the capital of France?",
+      "should_answer": false,
+      "ft_hits": 4,
+      "vec_rank": 0,
+      "hybrid_rank": 0,
+      "latency_ms": 7.5
+    },
+    {
+      "id": "q25",
+      "category": "无答案",
+      "question": "How do I bake a chocolate cake at home?",
+      "should_answer": false,
+      "ft_hits": 10,
+      "vec_rank": 0,
+      "hybrid_rank": 0,
+      "latency_ms": 9.1
+    }
+  ]
+}
