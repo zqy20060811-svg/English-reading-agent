@@ -27,6 +27,19 @@ READING_SYSTEM_PROMPT = (
     "3. Reply in the same language as the user's question."
 )
 
+# 查询改写系统提示词：把用户问题转成英文检索查询（供全文检索路与跨语言向量召回）
+REWRITE_SYSTEM_PROMPT = (
+    "You convert a reader's question about a book into a short English keyword query "
+    "for full-text search over classic literature.\n"
+    "Rules:\n"
+    "1. Output ONLY the query text: no quotes, no explanations, no markup.\n"
+    "2. Translate the question's content into English, keep proper nouns as-is.\n"
+    "3. Prefer content words (nouns, verbs, names); drop filler words.\n"
+    "4. At most 20 words.\n"
+    "Example: \"爱丽丝掉进了什么洞？\" -> Alice falling down rabbit hole\n"
+    "Example: \"弗兰肯斯坦用人体拼出了什么？\" -> Victor Frankenstein assembling creature body parts"
+)
+
 # 单章正文最长注入字符数（防止超长章节超出模型上下文，超出则截断保留开头）
 MAX_CONTEXT_CHARS = 50000
 
@@ -34,12 +47,37 @@ MAX_CONTEXT_CHARS = 50000
 class LLMService:
     """DeepSeek 大模型调用业务逻辑"""
 
+    def __init__(self):
+        self._rewrite_cache: dict[str, str] = {}  # 进程内改写缓存：原问题 -> 英文检索查询
+
     async def ask(self, question: str) -> str:
         """调用 DeepSeek chat 接口回答问题。"""
         return await run_in_threadpool(
             self._request_chat,
             self._build_payload(SYSTEM_PROMPT, question),
         )
+
+    async def rewrite_query(self, question: str) -> str:
+        """把用户问题改写为英文检索查询（带缓存；任何失败都回退原问题，不阻塞检索）。
+
+        - 改写是可选优化：失败/超时/未配 Key 时返回原问题，检索链路照常工作
+        - 结果缓存于服务实例（同一问题重复问不重复花 LLM 调用）
+        """
+        cached = self._rewrite_cache.get(question)
+        if cached is not None:
+            return cached
+        try:
+            payload = self._build_payload(REWRITE_SYSTEM_PROMPT, question)
+            payload["temperature"] = 0.2
+            payload["max_tokens"] = 80
+            rewritten = await run_in_threadpool(self._request_chat, payload)
+            rewritten = rewritten.strip().strip('"')[:200]
+            if not rewritten:
+                raise ValueError("empty rewrite")
+        except Exception:  # 改写失败不影响主链路
+            return question
+        self._rewrite_cache[question] = rewritten
+        return rewritten
 
     async def ask_with_context(self, question: str, context: str) -> str:
         """基于给定上下文（如 RAG 检索的证据片段）回答问题。"""

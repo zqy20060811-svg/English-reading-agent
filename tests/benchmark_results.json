@@ -1,11 +1,13 @@
 {
-  "run_at": "2026-10-18T05:05:37.829728+00:00",
+  "run_at": "2026-10-18T05:16:01.523365+00:00",
   "metrics": {
     "recall@5_vector": 0.9048,
     "recall@5_hybrid": 0.8571,
+    "recall@5_rewrite": 0.9048,
     "mrr_vector": 0.8111,
     "mrr_hybrid": 0.8254,
-    "avg_latency_ms": 34.6
+    "mrr_rewrite": 0.8111,
+    "avg_latency_ms": 14.8
   },
   "rows": [
     {
@@ -16,6 +18,8 @@
       "ft_hits": 0,
       "vec_rank": 1,
       "hybrid_rank": 1,
+      "rewrite_rank": 1,
+      "rewritten_query": "Alice falling down rabbit hole",
       "vec_top5": [
         1,
         4,
@@ -30,8 +34,16 @@
         1,
         1
       ],
+      "rewrite_top5": [
+        1,
+        4,
+        1,
+        1,
+        1
+      ],
       "miss_class": "命中",
-      "latency_ms": 183.1
+      "latency_ms": 39.5,
+      "rewrite_latency_ms": 1557.8
     },
     {
       "id": "q2",
@@ -41,6 +53,8 @@
       "ft_hits": 0,
       "vec_rank": 1,
       "hybrid_rank": 1,
+      "rewrite_rank": 1,
+      "rewritten_query": "March Hare Hatter time stopped why",
       "vec_top5": [
         7,
         9,
@@ -55,8 +69,16 @@
         9,
         7
       ],
+      "rewrite_top5": [
+        7,
+        7,
+        7,
+        7,
+        7
+      ],
       "miss_class": "命中",
-      "latency_ms": 9.6
+      "latency_ms": 6.3,
+      "rewrite_latency_ms": 1251.7
     },
     {
       "id": "q3",
@@ -66,6 +88,8 @@
       "ft_hits": 0,
       "vec_rank": 1,
       "hybrid_rank": 1,
+      "rewrite_rank": 1,
+      "rewritten_query": "Queen of Hearts order behead everyone croquet match",
       "vec_top5": [
         8,
         8,
@@ -80,8 +104,16 @@
         8,
         8
       ],
+      "rewrite_top5": [
+        8,
+        8,
+        8,
+        8,
+        8
+      ],
       "miss_class": "命中",
-      "latency_ms": 11.4
+      "latency_ms": 6.7,
+      "rewrite_latency_ms": 1279.0
     },
     {
       "id": "q4",
@@ -91,6 +123,8 @@
       "ft_hits": 0,
       "vec_rank": 1,
       "hybrid_rank": 1,
+      "rewrite_rank": 1,
+      "rewritten_query": "Scrooge nephew persuade",
       "vec_top5": [
         3,
         1,
@@ -105,8 +139,16 @@
         3,
         3
       ],
+      "rewrite_top5": [
+        3,
+        1,
+        1,
+        3,
+        3
+      ],
       "miss_class": "命中",
-      "latency_ms": 35.7
+      "latency_ms": 7.9,
+      "rewrite_latency_ms": 1338.2
     },
     {
       "id": "q5",
@@ -116,6 +158,8 @@
       "ft_hits": 0,
       "vec_rank": 1,
       "hybrid_rank": 1,
+      "rewrite_rank": 1,
+      "rewritten_query": "Miser Tim family livelihood",
       "vec_top5": [
         3,
         3,
@@ -130,8 +174,16 @@
         3,
         4
       ],
+      "rewrite_top5": [
+        3,
+        3,
+        3,
+        3,
+        4
+      ],
       "miss_class": "命中",
-      "latency_ms": 8.4
+      "latency_ms": 4.8,
+      "rewrite_latency_ms": 2257.8
     },
     {
       "id": "q7",
@@ -141,6 +193,8 @@
       "ft_hits": 0,
       "vec_rank": 0,
       "hybrid_rank": 0,
+      "rewrite_rank": 0,
+      "rewritten_query": "Victor Frankenstein assembling creature body parts",
       "vec_top5": [
         8,
         12,
@@ -155,8 +209,16 @@
         9,
         28
       ],
+      "rewrite_top5": [
+        14,
+        28,
+        28,
+        14,
+        12
+      ],
       "miss_class": "召回缺失_查询改写方向",
-      "latency_ms": 95.6
+      "latency_ms": 8.4,
+      "rewrite_latency_ms": 1471.7
     },
     {
       "id": "q8",
@@ -166,6 +228,8 @@
       "ft_hits": 0,
       "vec_rank": 1,
       "hybrid_rank": 1,
+      "rewrite_rank": 2,
+      "rewritten_query": "Captain Ahab obsessive pursuit white whale",
       "vec_top5": [
         41,
         54,
@@ -180,8 +244,16 @@
         100,
         41
       ],
+      "rewrite_top5": [
+        133,
+        36,
+        41,
+        41,
+        54
+      ],
       "miss_class": "命中",
-      "latency_ms": 148.7
+      "latency_ms": 14.6,
+      "rewrite_latency_ms": 1370.2
     },
     {
       "id": "q9",
@@ -191,6 +263,8 @@
       "ft_hits": 0,
       "vec_rank": 1,
       "hybrid_rank": 1,
+      "rewrite_rank": 1,
+      "rewritten_query": "Peter Pan flying into bedroom",
       "vec_top5": [
         3,
         17,
@@ -205,8 +279,16 @@
         3,
         6
       ],
+      "rewrite_top5": [
+        3,
+        17,
+        3,
+        6,
+        6
+      ],
       "miss_class": "命中",
-      "latency_ms": 29.7
+      "latency_ms": 7.2,
+      "rewrite_latency_ms": 1374.8
     },
     {
       "id": "q10",
@@ -216,6 +298,8 @@
       "ft_hits": 0,
       "vec_rank": 0,
       "hybrid_rank": 0,
+      "rewrite_rank": 1,
+      "rewritten_query": "Dorothy Wizard of Oz tornado blown where",
       "vec_top5": [
         3,
         12,
@@ -230,8 +314,16 @@
         14,
         12
       ],
+      "rewrite_top5": [
+        1,
+        14,
+        2,
+        3,
+        1
+      ],
       "miss_class": "排序问题_Reranker方向",
-      "latency_ms": 27.9
+      "latency_ms": 6.5,
+      "rewrite_latency_ms": 1647.5
     },
     {
       "id": "q11",
@@ -241,6 +333,8 @@
       "ft_hits": 10,
       "vec_rank": 1,
       "hybrid_rank": 1,
+      "rewrite_rank": 1,
+      "rewritten_query": "Scrooge hate Christmas",
       "vec_top5": [
         1,
         1,
@@ -255,8 +349,16 @@
         1,
         1
       ],
+      "rewrite_top5": [
+        1,
+        3,
+        1,
+        1,
+        1
+      ],
       "miss_class": "命中",
-      "latency_ms": 24.0
+      "latency_ms": 25.4,
+      "rewrite_latency_ms": 1640.4
     },
     {
       "id": "q12",
@@ -266,6 +368,8 @@
       "ft_hits": 10,
       "vec_rank": 2,
       "hybrid_rank": 1,
+      "rewrite_rank": 1,
+      "rewritten_query": "Alice falling down rabbit hole bottom",
       "vec_top5": [
         4,
         1,
@@ -280,8 +384,16 @@
         1,
         4
       ],
+      "rewrite_top5": [
+        1,
+        1,
+        4,
+        1,
+        1
+      ],
       "miss_class": "命中",
-      "latency_ms": 23.1
+      "latency_ms": 27.5,
+      "rewrite_latency_ms": 1486.3
     },
     {
       "id": "q13",
@@ -291,6 +403,8 @@
       "ft_hits": 10,
       "vec_rank": 1,
       "hybrid_rank": 1,
+      "rewrite_rank": 1,
+      "rewritten_query": "White Rabbit lose gloves fan",
       "vec_top5": [
         4,
         2,
@@ -305,8 +419,16 @@
         4,
         4
       ],
+      "rewrite_top5": [
+        4,
+        2,
+        2,
+        4,
+        4
+      ],
       "miss_class": "命中",
-      "latency_ms": 12.9
+      "latency_ms": 12.0,
+      "rewrite_latency_ms": 1187.0
     },
     {
       "id": "q14",
@@ -316,6 +438,8 @@
       "ft_hits": 10,
       "vec_rank": 1,
       "hybrid_rank": 1,
+      "rewrite_rank": 1,
+      "rewritten_query": "Cheshire Cat directions bargain",
       "vec_top5": [
         6,
         8,
@@ -330,8 +454,16 @@
         8,
         6
       ],
+      "rewrite_top5": [
+        6,
+        8,
+        6,
+        8,
+        6
+      ],
       "miss_class": "命中",
-      "latency_ms": 12.8
+      "latency_ms": 8.3,
+      "rewrite_latency_ms": 1476.0
     },
     {
       "id": "q15",
@@ -341,6 +473,8 @@
       "ft_hits": 6,
       "vec_rank": 1,
       "hybrid_rank": 1,
+      "rewrite_rank": 1,
+      "rewritten_query": "accused stealing tarts",
       "vec_top5": [
         11,
         11,
@@ -355,8 +489,16 @@
         11,
         1
       ],
+      "rewrite_top5": [
+        11,
+        12,
+        11,
+        11,
+        1
+      ],
       "miss_class": "命中",
-      "latency_ms": 8.6
+      "latency_ms": 6.7,
+      "rewrite_latency_ms": 1503.9
     },
     {
       "id": "q16",
@@ -366,6 +508,8 @@
       "ft_hits": 10,
       "vec_rank": 1,
       "hybrid_rank": 1,
+      "rewrite_rank": 1,
+      "rewritten_query": "Ghost of Christmas Present shows Scrooge",
       "vec_top5": [
         3,
         3,
@@ -380,8 +524,16 @@
         4,
         2
       ],
+      "rewrite_top5": [
+        3,
+        3,
+        4,
+        4,
+        2
+      ],
       "miss_class": "命中",
-      "latency_ms": 27.1
+      "latency_ms": 37.3,
+      "rewrite_latency_ms": 1172.5
     },
     {
       "id": "q17",
@@ -391,6 +543,8 @@
       "ft_hits": 10,
       "vec_rank": 5,
       "hybrid_rank": 0,
+      "rewrite_rank": 0,
+      "rewritten_query": "Marley's ghost warning Scrooge",
       "vec_top5": [
         3,
         1,
@@ -405,8 +559,16 @@
         1,
         1
       ],
+      "rewrite_top5": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
       "miss_class": "命中",
-      "latency_ms": 24.5
+      "latency_ms": 22.7,
+      "rewrite_latency_ms": 1205.5
     },
     {
       "id": "q18",
@@ -416,6 +578,8 @@
       "ft_hits": 0,
       "vec_rank": 1,
       "hybrid_rank": 1,
+      "rewrite_rank": 1,
+      "rewritten_query": "Alice trial three card gardeners",
       "vec_top5": [
         8,
         8,
@@ -430,8 +594,16 @@
         8,
         11
       ],
+      "rewrite_top5": [
+        8,
+        8,
+        8,
+        8,
+        8
+      ],
       "miss_class": "命中",
-      "latency_ms": 7.0
+      "latency_ms": 6.0,
+      "rewrite_latency_ms": 1520.7
     },
     {
       "id": "q19",
@@ -441,6 +613,8 @@
       "ft_hits": 10,
       "vec_rank": 1,
       "hybrid_rank": 1,
+      "rewrite_rank": 1,
+      "rewritten_query": "Scrooge relation Fred",
       "vec_top5": [
         3,
         5,
@@ -455,8 +629,16 @@
         5,
         3
       ],
+      "rewrite_top5": [
+        3,
+        5,
+        3,
+        5,
+        3
+      ],
       "miss_class": "命中",
-      "latency_ms": 21.8
+      "latency_ms": 22.2,
+      "rewrite_latency_ms": 1157.7
     },
     {
       "id": "q20",
@@ -466,6 +648,8 @@
       "ft_hits": 10,
       "vec_rank": 1,
       "hybrid_rank": 1,
+      "rewrite_rank": 1,
+      "rewritten_query": "Treasure Island narrator adopted apple barrel hiding",
       "vec_top5": [
         1,
         1,
@@ -480,8 +664,16 @@
         1,
         1
       ],
+      "rewrite_top5": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
       "miss_class": "命中",
-      "latency_ms": 55.2
+      "latency_ms": 24.3,
+      "rewrite_latency_ms": 1251.4
     },
     {
       "id": "q21",
@@ -491,6 +683,8 @@
       "ft_hits": 7,
       "vec_rank": 3,
       "hybrid_rank": 1,
+      "rewrite_rank": 5,
+      "rewritten_query": "Ebenezer character name",
       "vec_top5": [
         4,
         2,
@@ -505,8 +699,16 @@
         2,
         1
       ],
+      "rewrite_top5": [
+        4,
+        2,
+        2,
+        2,
+        1
+      ],
       "miss_class": "命中",
-      "latency_ms": 7.9
+      "latency_ms": 7.1,
+      "rewrite_latency_ms": 1001.0
     },
     {
       "id": "q22",
@@ -516,6 +718,8 @@
       "ft_hits": 10,
       "vec_rank": 1,
       "hybrid_rank": 3,
+      "rewrite_rank": 3,
+      "rewritten_query": "curiouser meaning Alice word",
       "vec_top5": [
         2,
         10,
@@ -530,8 +734,16 @@
         12,
         3
       ],
+      "rewrite_top5": [
+        10,
+        10,
+        2,
+        12,
+        12
+      ],
       "miss_class": "命中",
-      "latency_ms": 27.5
+      "latency_ms": 31.8,
+      "rewrite_latency_ms": 1147.8
     },
     {
       "id": "q23",
@@ -541,6 +753,8 @@
       "ft_hits": 0,
       "vec_rank": 0,
       "hybrid_rank": 0,
+      "rewrite_rank": 0,
+      "rewritten_query": "Lu Xun original name",
       "vec_top5": [
         9,
         9,
@@ -555,8 +769,16 @@
         11,
         9
       ],
+      "rewrite_top5": [
+        8,
+        2,
+        9,
+        11,
+        11
+      ],
       "miss_class": "无答案题",
-      "latency_ms": 6.0
+      "latency_ms": 5.4,
+      "rewrite_latency_ms": 984.8
     },
     {
       "id": "q24",
@@ -566,6 +788,8 @@
       "ft_hits": 4,
       "vec_rank": 0,
       "hybrid_rank": 0,
+      "rewrite_rank": 0,
+      "rewritten_query": "capital France",
       "vec_top5": [
         2,
         2,
@@ -580,8 +804,16 @@
         6,
         3
       ],
+      "rewrite_top5": [
+        2,
+        2,
+        2,
+        6,
+        3
+      ],
       "miss_class": "无答案题",
-      "latency_ms": 9.2
+      "latency_ms": 7.1,
+      "rewrite_latency_ms": 1069.7
     },
     {
       "id": "q25",
@@ -591,6 +823,8 @@
       "ft_hits": 10,
       "vec_rank": 0,
       "hybrid_rank": 0,
+      "rewrite_rank": 0,
+      "rewritten_query": "bake chocolate cake at home",
       "vec_top5": [
         1,
         4,
@@ -605,8 +839,16 @@
         6,
         3
       ],
+      "rewrite_top5": [
+        4,
+        1,
+        1,
+        6,
+        3
+      ],
       "miss_class": "无答案题",
-      "latency_ms": 11.9
+      "latency_ms": 8.3,
+      "rewrite_latency_ms": 2551.3
     }
   ]
 }

@@ -78,23 +78,51 @@ class RetrievalService:
         book_id: int | None = None,
         chapter_id: int | None = None,
         top_k: int = TOP_K,
+        rewriter=None,
     ) -> RetrievalResult:
         """混合检索：向量路（语义）+ 全文路（关键词）并行召回，RRF 融合取 Top-K。
 
         - encode 为 CPU 推理，放入线程池避免阻塞事件循环
         - book_id / chapter_id 为可选过滤（两路同时应用）
-        - 纯中文问题时全文路通常为空，融合结果即纯向量结果（向量路兜底）
+        - rewriter: 可选异步回调 `async (question) -> str`（如 LLM 查询改写）。
+          传入时启用**多查询融合**：原问题与改写后的英文检索查询各跑两路召回，
+          四个候选列表一起 RRF 融合——原问题的命中票全部保留，改写查询额外
+          补充中文情节描述的英文证据（25 题实测：Recall 追平纯向量基线，
+          并修复排序类漏召回 q10）。不传则退化为常规两路融合
         """
-        vector, ft_hits = await asyncio.gather(
-            run_in_threadpool(encode_query, question),
-            self.chunk_repo.search_fulltext(
+        search_query = question
+        if rewriter is not None:
+            search_query = await rewriter(question)
+
+        if rewriter is None:
+            vector = await run_in_threadpool(encode_query, question)
+            ft_hits = await self.chunk_repo.search_fulltext(
                 question, book_id=book_id, chapter_id=chapter_id, top_k=CANDIDATE_K
-            ),
-        )
-        vec_hits = await self.chunk_repo.search(
-            vector, book_id=book_id, chapter_id=chapter_id, top_k=CANDIDATE_K
-        )
-        fused = rrf_fuse([vec_hits, ft_hits], top_k=top_k)
+            )
+            vec_hits = await self.chunk_repo.search(
+                vector, book_id=book_id, chapter_id=chapter_id, top_k=CANDIDATE_K
+            )
+            lists = [vec_hits, ft_hits]
+        else:
+            vector_o, vector_r, ft_o, ft_r = await asyncio.gather(
+                run_in_threadpool(encode_query, question),
+                run_in_threadpool(encode_query, search_query),
+                self.chunk_repo.search_fulltext(
+                    question, book_id=book_id, chapter_id=chapter_id, top_k=CANDIDATE_K
+                ),
+                self.chunk_repo.search_fulltext(
+                    search_query, book_id=book_id, chapter_id=chapter_id, top_k=CANDIDATE_K
+                ),
+            )
+            vec_o = await self.chunk_repo.search(
+                vector_o, book_id=book_id, chapter_id=chapter_id, top_k=CANDIDATE_K
+            )
+            vec_r = await self.chunk_repo.search(
+                vector_r, book_id=book_id, chapter_id=chapter_id, top_k=CANDIDATE_K
+            )
+            lists = [vec_o, vec_r, ft_o, ft_r]
+
+        fused = rrf_fuse(lists, top_k=top_k)
         return RetrievalResult(hits=fused, context=self.format_context(fused), query=question)
 
     @staticmethod

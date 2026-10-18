@@ -119,12 +119,34 @@ class TestRetrievalBenchmark:
                 repo = ChunkRepository(s)
                 questions = [c.question for c in BENCHMARK_CASES]
                 vectors = encode_texts(questions)
+                # 查询改写组：DeepSeek 可用时启用（改写结果缓存于 llm 实例）
+                from app.services.llm_service import LLMService
+
+                llm = LLMService()
+                rewrites: dict[str, str] = {}
+
+                async def rewrite(q: str) -> str:
+                    rewrites[q] = await llm.rewrite_query(q)
+                    return rewrites[q]
+
                 for case, vec in zip(BENCHMARK_CASES, vectors):
                     t0 = time.perf_counter()
                     ft = await repo.search_fulltext(case.question, book_id=case.book_id, top_k=10) if case.book_id else []
                     v = await repo.search(vec, book_id=case.book_id, top_k=10) if case.book_id else []
                     hybrid = rrf_fuse([v, ft], top_k=5) if case.book_id else []
                     ms = (time.perf_counter() - t0) * 1000
+                    # 改写组：多查询融合（原问题 + 改写查询，各跑向量/全文两路，四列表 RRF），
+                    # 与线上 retrieve_for_question(rewriter=...) 行为一致
+                    t1 = time.perf_counter()
+                    try:
+                        rw = await rewrite(case.question)
+                        ft_rw = await repo.search_fulltext(rw, book_id=case.book_id, top_k=10) if case.book_id else []
+                        v_rw = await repo.search(encode_texts([rw])[0], book_id=case.book_id, top_k=10) if case.book_id else []
+                        hybrid_rw = rrf_fuse([v, v_rw, ft, ft_rw], top_k=5) if case.book_id else []
+                        rw_ok = True
+                    except Exception:
+                        hybrid_rw, rw_ok = [], False
+                    ms_rw = (time.perf_counter() - t1) * 1000
                     gold_top10_rank = _gold_rank(v, ch_map, case)  # 证据在向量路 Top-10 中的排名
                     rows.append({
                         "id": case.id, "category": case.category, "question": case.question,
@@ -133,35 +155,49 @@ class TestRetrievalBenchmark:
                         # 基线口径统一 Top-5：纯向量取前 5，混合融合后取 5，两者公平可比
                         "vec_rank": _gold_rank(v[:5], ch_map, case),
                         "hybrid_rank": _gold_rank(hybrid, ch_map, case),
+                        "rewrite_rank": _gold_rank(hybrid_rw, ch_map, case) if rw_ok else None,
+                        "rewritten_query": rewrites.get(case.question),
                         # 逐题 Top-5 明细（章节号列表，含顺序），供人工核对证据位置
                         "vec_top5": [ch_map[h.chapter_id][1] for h in v[:5]],
                         "hybrid_top5": [ch_map[h.chapter_id][1] for h in hybrid[:5]],
+                        "rewrite_top5": [ch_map[h.chapter_id][1] for h in hybrid_rw[:5]] if rw_ok else None,
                         # 漏召回分类：证据不在向量 Top-10 → 召回缺失（查询改写方向）；
                         # 在 Top-6~10 → 排序问题（Reranker 方向）；在 Top-5 内 → 命中
                         "miss_class": _miss_class(gold_top10_rank, case.should_answer),
                         "latency_ms": round(ms, 1),
+                        "rewrite_latency_ms": round(ms_rw, 1) if rw_ok else None,
                     })
             return rows
 
         rows = asyncio.run(run())
         answered = [r for r in rows if r["should_answer"]]
+        rw_answered = [r for r in answered if r["rewrite_rank"] is not None]
         recall_v = sum(r["vec_rank"] > 0 for r in answered) / len(answered)
         recall_h = sum(r["hybrid_rank"] > 0 for r in answered) / len(answered)
+        recall_rw = sum(r["rewrite_rank"] > 0 for r in rw_answered) / len(rw_answered) if rw_answered else None
         mrr_v = sum(1 / r["vec_rank"] for r in answered if r["vec_rank"]) / len(answered)
         mrr_h = sum(1 / r["hybrid_rank"] for r in answered if r["hybrid_rank"]) / len(answered)
+        mrr_rw = sum(1 / r["rewrite_rank"] for r in rw_answered if r["rewrite_rank"]) / len(rw_answered) if rw_answered else None
         avg_ms = sum(r["latency_ms"] for r in rows) / len(rows)
 
         RESULTS_PATH.write_text(
             json.dumps({"run_at": datetime.now(timezone.utc).isoformat(), "metrics": {
                 "recall@5_vector": round(recall_v, 4), "recall@5_hybrid": round(recall_h, 4),
+                "recall@5_rewrite": round(recall_rw, 4) if recall_rw is not None else None,
                 "mrr_vector": round(mrr_v, 4), "mrr_hybrid": round(mrr_h, 4),
+                "mrr_rewrite": round(mrr_rw, 4) if mrr_rw is not None else None,
                 "avg_latency_ms": round(avg_ms, 1)}, "rows": rows}, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
 
-        print(f"\nRecall@5 向量={recall_v:.1%} 混合={recall_h:.1%} | MRR 向量={mrr_v:.3f} 混合={mrr_h:.3f} | 平均耗时 {avg_ms:.0f}ms")
+        print(f"\nRecall@5 向量={recall_v:.1%} 混合={recall_h:.1%}"
+              + (f" 改写={recall_rw:.1%}" if recall_rw is not None else "")
+              + f" | MRR 向量={mrr_v:.3f} 混合={mrr_h:.3f}"
+              + (f" 改写={mrr_rw:.3f}" if mrr_rw is not None else "")
+              + f" | 平均耗时 {avg_ms:.0f}ms")
         for r in rows:
-            print(f"  {r['id']} [{r['category']}] ft={r['ft_hits']} vec={_fmt(r['vec_rank'])} hyb={_fmt(r['hybrid_rank'])}")
+            rw_info = f" rw={r['rewritten_query']!r} rwrank={_fmt(r['rewrite_rank'])}" if r["rewrite_rank"] is not None else ""
+            print(f"  {r['id']} [{r['category']}] ft={r['ft_hits']} vec={_fmt(r['vec_rank'])} hyb={_fmt(r['hybrid_rank'])}{rw_info}")
 
         # 下限断言：低于历史基线（0.75）即回归
         assert recall_h >= 0.75, f"混合检索 Recall@5 回归: {recall_h:.1%}，明细见 tests/benchmark_results.json"
