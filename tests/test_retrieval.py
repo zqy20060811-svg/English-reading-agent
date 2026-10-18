@@ -125,6 +125,7 @@ class TestRetrievalBenchmark:
                     v = await repo.search(vec, book_id=case.book_id, top_k=10) if case.book_id else []
                     hybrid = rrf_fuse([v, ft], top_k=5) if case.book_id else []
                     ms = (time.perf_counter() - t0) * 1000
+                    gold_top10_rank = _gold_rank(v, ch_map, case)  # 证据在向量路 Top-10 中的排名
                     rows.append({
                         "id": case.id, "category": case.category, "question": case.question,
                         "should_answer": case.should_answer,
@@ -132,6 +133,12 @@ class TestRetrievalBenchmark:
                         # 基线口径统一 Top-5：纯向量取前 5，混合融合后取 5，两者公平可比
                         "vec_rank": _gold_rank(v[:5], ch_map, case),
                         "hybrid_rank": _gold_rank(hybrid, ch_map, case),
+                        # 逐题 Top-5 明细（章节号列表，含顺序），供人工核对证据位置
+                        "vec_top5": [ch_map[h.chapter_id][1] for h in v[:5]],
+                        "hybrid_top5": [ch_map[h.chapter_id][1] for h in hybrid[:5]],
+                        # 漏召回分类：证据不在向量 Top-10 → 召回缺失（查询改写方向）；
+                        # 在 Top-6~10 → 排序问题（Reranker 方向）；在 Top-5 内 → 命中
+                        "miss_class": _miss_class(gold_top10_rank, case.should_answer),
                         "latency_ms": round(ms, 1),
                     })
             return rows
@@ -161,9 +168,27 @@ class TestRetrievalBenchmark:
 
         # 无答案题：检索层不为空 → 证明拒答必须依赖 LLM 判断（llm_service 提示词），而非检索为空
         no_answer = [r for r in rows if not r["should_answer"]]
-        assert all(r["vec_rank"] >= 0 for r in no_answer)
         for r in no_answer:
             print(f"  {r['id']} 无答案题候选 vec_rank={r['vec_rank']} ft_hits={r['ft_hits']}（LLM 拒答兜底）")
+
+        # 漏召回分类汇总（决定优化方向：排序问题→Reranker；召回缺失→查询改写）
+        misses = [r for r in answered if r["vec_rank"] == 0]
+        by_class = {}
+        for r in misses:
+            by_class.setdefault(r["miss_class"], []).append(r["id"])
+        print("\n漏召回分类：")
+        for cls, ids in by_class.items():
+            print(f"  {cls}: {ids}")
+
+
+def _miss_class(gold_top10_rank: int, should_answer: bool) -> str:
+    if not should_answer:
+        return "无答案题"
+    if gold_top10_rank == 0:
+        return "召回缺失_查询改写方向"
+    if gold_top10_rank <= 5:
+        return "命中"
+    return "排序问题_Reranker方向"
 
 
 def _gold_rank(hits, ch_map, case):

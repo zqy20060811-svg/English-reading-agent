@@ -1,11 +1,11 @@
 {
-  "run_at": "2026-10-17T12:03:14.661558+00:00",
+  "run_at": "2026-10-18T05:05:37.829728+00:00",
   "metrics": {
     "recall@5_vector": 0.9048,
     "recall@5_hybrid": 0.8571,
     "mrr_vector": 0.8111,
     "mrr_hybrid": 0.8254,
-    "avg_latency_ms": 14.5
+    "avg_latency_ms": 34.6
   },
   "rows": [
     {
@@ -16,7 +16,22 @@
       "ft_hits": 0,
       "vec_rank": 1,
       "hybrid_rank": 1,
-      "latency_ms": 36.0
+      "vec_top5": [
+        1,
+        4,
+        2,
+        1,
+        1
+      ],
+      "hybrid_top5": [
+        1,
+        4,
+        2,
+        1,
+        1
+      ],
+      "miss_class": "命中",
+      "latency_ms": 183.1
     },
     {
       "id": "q2",
@@ -26,7 +41,22 @@
       "ft_hits": 0,
       "vec_rank": 1,
       "hybrid_rank": 1,
-      "latency_ms": 6.8
+      "vec_top5": [
+        7,
+        9,
+        7,
+        9,
+        7
+      ],
+      "hybrid_top5": [
+        7,
+        9,
+        7,
+        9,
+        7
+      ],
+      "miss_class": "命中",
+      "latency_ms": 9.6
     },
     {
       "id": "q3",
@@ -36,7 +66,22 @@
       "ft_hits": 0,
       "vec_rank": 1,
       "hybrid_rank": 1,
-      "latency_ms": 7.9
+      "vec_top5": [
+        8,
+        8,
+        8,
+        8,
+        8
+      ],
+      "hybrid_top5": [
+        8,
+        8,
+        8,
+        8,
+        8
+      ],
+      "miss_class": "命中",
+      "latency_ms": 11.4
     },
     {
       "id": "q4",
@@ -46,7 +91,22 @@
       "ft_hits": 0,
       "vec_rank": 1,
       "hybrid_rank": 1,
-      "latency_ms": 6.9
+      "vec_top5": [
+        3,
+        1,
+        3,
+        3,
+        3
+      ],
+      "hybrid_top5": [
+        3,
+        1,
+        3,
+        3,
+        3
+      ],
+      "miss_class": "命中",
+      "latency_ms": 35.7
     },
     {
       "id": "q5",
@@ -56,7 +116,22 @@
       "ft_hits": 0,
       "vec_rank": 1,
       "hybrid_rank": 1,
-      "latency_ms": 5.8
+      "vec_top5": [
+        3,
+        3,
+        3,
+        3,
+        4
+      ],
+      "hybrid_top5": [
+        3,
+        3,
+        3,
+        3,
+        4
+      ],
+      "miss_class": "命中",
+      "latency_ms": 8.4
     },
     {
       "id": "q7",
@@ -66,7 +141,22 @@
       "ft_hits": 0,
       "vec_rank": 0,
       "hybrid_rank": 0,
-      "latency_ms": 9.0
+      "vec_top5": [
+        8,
+        12,
+        14,
+        9,
+        28
+      ],
+      "hybrid_top5": [
+        8,
+        12,
+        14,
+        9,
+        28
+      ],
+      "miss_class": "召回缺失_查询改写方向",
+      "latency_ms": 95.6
     },
     {
       "id": "q8",
@@ -76,7 +166,22 @@
       "ft_hits": 0,
       "vec_rank": 1,
       "hybrid_rank": 1,
-      "latency_ms": 15.3
+      "vec_top5": [
+        41,
+        54,
+        36,
+        100,
+        41
+      ],
+      "hybrid_top5": [
+        41,
+        54,
+        36,
+        100,
+        41
+      ],
+      "miss_class": "命中",
+      "latency_ms": 148.7
     },
     {
       "id": "q9",
@@ -86,7 +191,22 @@
       "ft_hits": 0,
       "vec_rank": 1,
       "hybrid_rank": 1,
-      "latency_ms": 7.5
+      "vec_top5": [
+        3,
+        17,
+        3,
+        3,
+        6
+      ],
+      "hybrid_top5": [
+        3,
+        17,
+        3,
+        3,
+        6
+      ],
+      "miss_class": "命中",
+      "latency_ms": 29.7
     },
     {
       "id": "q10",
@@ -96,7 +216,22 @@
       "ft_hits": 0,
       "vec_rank": 0,
       "hybrid_rank": 0,
-      "latency_ms": 6.5
+      "vec_top5": [
+        3,
+        12,
+        18,
+        14,
+        12
+      ],
+      "hybrid_top5": [
+        3,
+        12,
+        18,
+        14,
+        12
+      ],
+      "miss_class": "排序问题_Reranker方向",
+      "latency_ms": 27.9
     },
     {
       "id": "q11",
@@ -106,7 +241,22 @@
       "ft_hits": 10,
       "vec_rank": 1,
       "hybrid_rank": 1,
-      "latency_ms": 24.8
+      "vec_top5": [
+        1,
+        1,
+        1,
+        3,
+        3
+      ],
+      "hybrid_top5": [
+        1,
+        3,
+        1,
+        1,
+        1
+      ],
+      "miss_class": "命中",
+      "latency_ms": 24.0
     },
     {
       "id": "q12",
@@ -116,7 +266,22 @@
       "ft_hits": 10,
       "vec_rank": 2,
       "hybrid_rank": 1,
-      "latency_ms": 31.8
+      "vec_top5": [
+        4,
+        1,
+        1,
+        1,
+        1
+      ],
+      "hybrid_top5": [
+        1,
+        1,
+        1,
+        1,
+        4
+      ],
+      "miss_class": "命中",
+      "latency_ms": 23.1
     },
     {
       "id": "q13",
@@ -126,7 +291,22 @@
       "ft_hits": 10,
       "vec_rank": 1,
       "hybrid_rank": 1,
-      "latency_ms": 11.9
+      "vec_top5": [
+        4,
+        2,
+        2,
+        4,
+        1
+      ],
+      "hybrid_top5": [
+        4,
+        2,
+        2,
+        4,
+        4
+      ],
+      "miss_class": "命中",
+      "latency_ms": 12.9
     },
     {
       "id": "q14",
@@ -136,7 +316,22 @@
       "ft_hits": 10,
       "vec_rank": 1,
       "hybrid_rank": 1,
-      "latency_ms": 11.1
+      "vec_top5": [
+        6,
+        8,
+        8,
+        6,
+        6
+      ],
+      "hybrid_top5": [
+        6,
+        8,
+        6,
+        8,
+        6
+      ],
+      "miss_class": "命中",
+      "latency_ms": 12.8
     },
     {
       "id": "q15",
@@ -146,7 +341,22 @@
       "ft_hits": 6,
       "vec_rank": 1,
       "hybrid_rank": 1,
-      "latency_ms": 7.1
+      "vec_top5": [
+        11,
+        11,
+        12,
+        11,
+        10
+      ],
+      "hybrid_top5": [
+        11,
+        12,
+        11,
+        11,
+        1
+      ],
+      "miss_class": "命中",
+      "latency_ms": 8.6
     },
     {
       "id": "q16",
@@ -156,7 +366,22 @@
       "ft_hits": 10,
       "vec_rank": 1,
       "hybrid_rank": 1,
-      "latency_ms": 25.4
+      "vec_top5": [
+        3,
+        3,
+        3,
+        4,
+        4
+      ],
+      "hybrid_top5": [
+        3,
+        3,
+        4,
+        4,
+        2
+      ],
+      "miss_class": "命中",
+      "latency_ms": 27.1
     },
     {
       "id": "q17",
@@ -166,7 +391,22 @@
       "ft_hits": 10,
       "vec_rank": 5,
       "hybrid_rank": 0,
-      "latency_ms": 24.1
+      "vec_top5": [
+        3,
+        1,
+        1,
+        1,
+        2
+      ],
+      "hybrid_top5": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "miss_class": "命中",
+      "latency_ms": 24.5
     },
     {
       "id": "q18",
@@ -176,7 +416,22 @@
       "ft_hits": 0,
       "vec_rank": 1,
       "hybrid_rank": 1,
-      "latency_ms": 6.6
+      "vec_top5": [
+        8,
+        8,
+        8,
+        8,
+        11
+      ],
+      "hybrid_top5": [
+        8,
+        8,
+        8,
+        8,
+        11
+      ],
+      "miss_class": "命中",
+      "latency_ms": 7.0
     },
     {
       "id": "q19",
@@ -186,7 +441,22 @@
       "ft_hits": 10,
       "vec_rank": 1,
       "hybrid_rank": 1,
-      "latency_ms": 22.5
+      "vec_top5": [
+        3,
+        5,
+        5,
+        3,
+        3
+      ],
+      "hybrid_top5": [
+        3,
+        5,
+        3,
+        5,
+        3
+      ],
+      "miss_class": "命中",
+      "latency_ms": 21.8
     },
     {
       "id": "q20",
@@ -196,7 +466,22 @@
       "ft_hits": 10,
       "vec_rank": 1,
       "hybrid_rank": 1,
-      "latency_ms": 21.2
+      "vec_top5": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "hybrid_top5": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "miss_class": "命中",
+      "latency_ms": 55.2
     },
     {
       "id": "q21",
@@ -206,7 +491,22 @@
       "ft_hits": 7,
       "vec_rank": 3,
       "hybrid_rank": 1,
-      "latency_ms": 8.8
+      "vec_top5": [
+        4,
+        2,
+        1,
+        1,
+        3
+      ],
+      "hybrid_top5": [
+        1,
+        2,
+        4,
+        2,
+        1
+      ],
+      "miss_class": "命中",
+      "latency_ms": 7.9
     },
     {
       "id": "q22",
@@ -216,7 +516,22 @@
       "ft_hits": 10,
       "vec_rank": 1,
       "hybrid_rank": 3,
-      "latency_ms": 26.2
+      "vec_top5": [
+        2,
+        10,
+        5,
+        5,
+        10
+      ],
+      "hybrid_top5": [
+        10,
+        10,
+        2,
+        12,
+        3
+      ],
+      "miss_class": "命中",
+      "latency_ms": 27.5
     },
     {
       "id": "q23",
@@ -226,7 +541,22 @@
       "ft_hits": 0,
       "vec_rank": 0,
       "hybrid_rank": 0,
-      "latency_ms": 7.5
+      "vec_top5": [
+        9,
+        9,
+        8,
+        11,
+        9
+      ],
+      "hybrid_top5": [
+        9,
+        9,
+        8,
+        11,
+        9
+      ],
+      "miss_class": "无答案题",
+      "latency_ms": 6.0
     },
     {
       "id": "q24",
@@ -236,7 +566,22 @@
       "ft_hits": 4,
       "vec_rank": 0,
       "hybrid_rank": 0,
-      "latency_ms": 7.5
+      "vec_top5": [
+        2,
+        2,
+        6,
+        8,
+        9
+      ],
+      "hybrid_top5": [
+        2,
+        2,
+        2,
+        6,
+        3
+      ],
+      "miss_class": "无答案题",
+      "latency_ms": 9.2
     },
     {
       "id": "q25",
@@ -246,7 +591,22 @@
       "ft_hits": 10,
       "vec_rank": 0,
       "hybrid_rank": 0,
-      "latency_ms": 9.1
+      "vec_top5": [
+        1,
+        4,
+        6,
+        1,
+        11
+      ],
+      "hybrid_top5": [
+        4,
+        1,
+        1,
+        6,
+        3
+      ],
+      "miss_class": "无答案题",
+      "latency_ms": 11.9
     }
   ]
 }
