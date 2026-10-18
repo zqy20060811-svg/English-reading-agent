@@ -151,7 +151,10 @@ class LevelTestService:
                 grade = "薄弱，建议从该维度低等级材料补起"
             return f"{DIMENSION_DESCRIPTIONS[dim]}正确率 {acc:.0%}：{grade}"
 
-        return {d: text(d) for d in DIMENSIONS} | {"overall": f"当前水平评估为 {level}"}
+        # 题量有限（每等级仅 2 题），明确标注为初步评估，避免误导为精确 CEFR 认证
+        return {d: text(d) for d in DIMENSIONS} | {
+            "overall": f"当前水平初步评估为 {level}（题量有限，结果供参考）"
+        }
 
     @staticmethod
     async def _recommend_books(
