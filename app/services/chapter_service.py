@@ -40,6 +40,9 @@ _HEADING_PATTERNS = [
 # 干扰行过滤：目录中的方括号行、插图说明、页码引导点
 _NOISE_RE = re.compile(r"\]\s*$|\.\s+\.\s+\.|Heading to|Tailpiece")
 
+# 罗马数字单独成行（无点号，标题在下一行），如 Treasure Island 正文的 "I"
+_BARE_ROMAN_RE = re.compile(r"^\s*([IVXLCDM]{1,8})\s*$")
+
 # 目录区判定参数：连续 ≥ TOC_RUN_MIN 个候选、相邻间距 ≤ TOC_GAP 行 → 整区剔除。
 # TOC_GAP 取 3：目录条目几乎逐行紧排（间距 1~2），而目录末条与正文第一章标题
 # 之间一般隔 4 行以上，避免把正文第一章一起吞掉。
@@ -83,6 +86,18 @@ def split_chapters(content: str) -> list[tuple[str, str]]:
     candidates: list[tuple[int, int, str]] = []  # (行号, 章节逻辑序号, 标题或空)
     for i, line in enumerate(lines):
         head = _line_heading(line)
+        if not head:
+            m = _BARE_ROMAN_RE.match(line)
+            # 罗马数字单独成行：仅当其后 3 行内出现"像标题"的行（≥3 个字母）
+            # 才认定为章节号，避免把行文中的孤立代词 "I" 误判为章节标题
+            if m:
+                for k in range(i + 1, min(i + 4, len(lines))):
+                    nxt = lines[k].strip()
+                    if not nxt:
+                        continue
+                    if len(re.findall(r"[A-Za-z]", nxt)) >= 3:
+                        head = (roman_to_int(m.group(1)), "")
+                    break
         if head:
             candidates.append((i, head[0], head[1]))
 
@@ -186,18 +201,31 @@ async def sync_chapters_from_local(
             content = content_path.read_text(encoding="utf-8")
             parts = split_chapters(content)
 
-            # 幂等：先清空该书已有章节再全量插入
-            await session.execute(delete(BookChapter).where(BookChapter.book_id == book.id))
+            # 幂等 upsert：按 (book_id, chapter_index) 更新已存在的章节（保持主键不变，
+            # 避免下游 book_chunks.chapter_id 全部失联），多退少补
+            existing = (
+                await session.execute(select(BookChapter).where(BookChapter.book_id == book.id))
+            ).scalars().all()
+            by_index = {c.chapter_index: c for c in existing}
             for i, (title, body) in enumerate(parts, start=1):
-                session.add(
-                    BookChapter(
-                        book_id=book.id,
-                        chapter_index=i,
-                        title=title[:255],
-                        content=body,
-                        word_count=_word_count(body),
+                row = by_index.get(i)
+                if row is None:
+                    session.add(
+                        BookChapter(
+                            book_id=book.id,
+                            chapter_index=i,
+                            title=title[:255],
+                            content=body,
+                            word_count=_word_count(body),
+                        )
                     )
-                )
+                else:
+                    row.title = title[:255]
+                    row.content = body
+                    row.word_count = _word_count(body)
+            stale_ids = [c.id for idx, c in by_index.items() if idx > len(parts)]
+            if stale_ids:
+                await session.execute(delete(BookChapter).where(BookChapter.id.in_(stale_ids)))
             stats["books"] += 1
             stats["chapters"] += len(parts)
         await session.commit()

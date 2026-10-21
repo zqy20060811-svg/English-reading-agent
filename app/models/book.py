@@ -18,6 +18,7 @@ class Book(Base):
     year: Mapped[int] = mapped_column(Integer)
     genre: Mapped[str] = mapped_column(String(50))
     synopsis: Mapped[str] = mapped_column(Text)  # 英文简介
+    cover_url: Mapped[str | None] = mapped_column(String(512), nullable=True)  # 封面图（Open Library）
     language: Mapped[str] = mapped_column(String(10), default="en")
     source_url: Mapped[str] = mapped_column(String(512))
     word_count: Mapped[int] = mapped_column(Integer, default=0)

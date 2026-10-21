@@ -15,6 +15,7 @@ class BookOut(BaseModel):
     year: int
     genre: str
     synopsis: str
+    cover_url: str | None = None  # 封面图 URL（Open Library，可能为空）
     language: str
     source_url: str
     word_count: int

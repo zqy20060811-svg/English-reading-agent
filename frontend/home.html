@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>English Reading — 学习中心</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet" />
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: {
+            50: '#EEF6FF', 100: '#D9EAFF', 200: '#B3D4FF', 400: '#6BA9FF',
+            500: '#3B82F6', 600: '#2563EB', 700: '#1D4ED8'
+          },
+          mint: { 400: '#34D399', 500: '#10B981', 600: '#059669' },
+          ink: '#1F2937',
+          muted: '#6B7280'
+        },
+        boxShadow: {
+          soft: '0 10px 30px rgba(59, 130, 246, 0.08)',
+          card: '0 20px 40px rgba(31, 41, 55, 0.08)',
+          glow: '0 15px 40px rgba(59, 130, 246, 0.25)'
+        }
+      }
+    }
+  }
+</script>
+<style>
+  body {
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    background: #FBF7F1;
+    color: #1F2937;
+  }
+
+  .hero-gradient {
+    background: linear-gradient(135deg, #EEF6FF 0%, #F0F9FF 45%, #FFFBEA 100%);
+  }
+
+  .fade-in { animation: fadeIn 0.35s ease both; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* 章节正文排版 */
+  .prose-book p {
+    text-indent: 2em;
+    margin-top: 1rem;
+    line-height: 1.9;
+  }
+  .prose-book p:first-child { margin-top: 0; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<div id="main-app" class="min-h-screen flex">
+
+  <!-- ================= 侧边栏 ================= -->
+  <aside class="w-64 bg-white shadow-soft flex flex-col fixed inset-y-0 left-0 z-30">
+    <div class="p-6 flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-400 flex items-center justify-center text-white shadow-glow">
+        <i class="fa fa-book"></i>
+      </div>
+      <span class="font-bold text-lg">English Reading</span>
+    </div>
+
+    <nav class="flex-1 px-4 space-y-1">
+      <div class="nav-item active flex items-center gap-3 px-4 py-3 rounded-xl bg-brand-50 text-brand-700 font-semibold cursor-pointer transition" data-page="home" onclick="switchPage('home')">
+        <i class="fa fa-home w-5"></i><span>学习中心</span>
+      </div>
+      <div class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-muted hover:bg-gray-50 cursor-pointer transition" data-page="read" onclick="switchPage('read')">
+        <i class="fa fa-book w-5"></i><span>阅读</span>
+      </div>
+      <div class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-muted hover:bg-gray-50 cursor-pointer transition" data-page="test" onclick="switchPage('test')">
+        <i class="fa fa-pencil-square w-5"></i><span>水平测试</span>
+      </div>
+      <div class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-muted hover:bg-gray-50 cursor-pointer transition" data-page="translate" onclick="switchPage('translate')">
+        <i class="fa fa-language w-5"></i><span>翻译</span>
+      </div>
+    </nav>
+
+    <div class="p-4">
+      <div id="side-user" class="rounded-2xl bg-gradient-to-br from-brand-500 to-brand-400 p-5 text-white shadow-glow">
+        <div class="text-sm opacity-90">当前用户</div>
+        <div id="side-username" class="text-xl font-bold mt-1">—</div>
+        <div id="side-level" class="text-xs mt-3 opacity-90">等级：未测试</div>
+        <button onclick="doLogout()" class="mt-4 w-full py-2 rounded-xl bg-white/15 border border-white/40 text-sm hover:bg-white/25 transition">
+          <i class="fa fa-sign-out mr-1"></i>退出登录
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= 主内容 ================= -->
+  <main class="flex-1 ml-64">
+
+    <!-- 顶部栏 -->
+    <header class="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-8 py-4">
+      <h2 id="page-title" class="text-xl font-bold">学习中心</h2>
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-3 pl-4 border-l border-gray-100">
+          <div id="topbar-avatar" class="w-9 h-9 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white font-semibold">R</div>
+          <div class="text-sm">
+            <div id="topbar-username" class="font-semibold">—</div>
+            <div id="topbar-level" class="text-muted text-xs">等级：未测试</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ========== 首页 / 学习中心 ========== -->
+    <section id="content-home" class="p-8 fade-in">
+
+      <!-- 欢迎横幅 -->
+      <div class="rounded-3xl bg-gradient-to-r from-brand-600 via-brand-500 to-brand-400 p-8 text-white shadow-glow relative overflow-hidden">
+        <div class="absolute -right-10 -top-10 w-64 h-64 bg-white/10 rounded-full blur-2xl"></div>
+        <div class="absolute -right-20 -bottom-20 w-72 h-72 bg-yellow-200/20 rounded-full blur-2xl"></div>
+
+        <div class="relative grid md:grid-cols-2 gap-6 items-center">
+          <div>
+            <div id="home-greeting" class="text-sm opacity-90">你好 👋</div>
+            <h1 class="text-3xl font-extrabold mt-2">坚持阅读，每天进步。</h1>
+            <p class="opacity-90 mt-3 max-w-md" id="home-sub">从书架选一本书开始今天的阅读吧。</p>
+            <div class="mt-6 flex gap-3">
+              <button onclick="switchPage('read')" class="px-6 py-3 rounded-xl bg-white text-brand-600 font-semibold hover:shadow-xl transition">
+                去阅读
+              </button>
+              <button onclick="switchPage('test')" class="px-6 py-3 rounded-xl bg-white/10 border border-white/40 font-semibold hover:bg-white/20 transition">
+                测一测英语水平
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-4">
+            <div class="bg-white/15 backdrop-blur rounded-2xl p-4 border border-white/20">
+              <div id="stat-books" class="text-2xl font-bold">—</div>
+              <div class="text-xs opacity-90 mt-1">书库藏书</div>
+            </div>
+            <div class="bg-white/15 backdrop-blur rounded-2xl p-4 border border-white/20">
+              <div id="stat-level" class="text-2xl font-bold">—</div>
+              <div class="text-xs opacity-90 mt-1">我的等级</div>
+            </div>
+            <div class="bg-white/15 backdrop-blur rounded-2xl p-4 border border-white/20">
+              <div id="stat-reading" class="text-2xl font-bold">—</div>
+              <div class="text-xs opacity-90 mt-1">阅读状态</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 继续阅读 -->
+      <div id="continue-card" class="hidden bg-white rounded-2xl shadow-soft p-6 hover:shadow-card transition mt-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold">继续阅读</h3>
+          <span class="text-sm text-muted" id="continue-meta"></span>
+        </div>
+        <div class="grid md:grid-cols-[160px_1fr] gap-5">
+          <div id="continue-cover" class="max-w-[160px]"></div>
+          <div class="flex flex-col justify-between">
+            <div>
+              <div class="text-sm text-muted">上次读到</div>
+              <h4 id="continue-title" class="text-xl font-bold mt-1"></h4>
+              <p id="continue-progress" class="text-muted mt-2 text-sm"></p>
+            </div>
+            <button onclick="openContinue()" class="self-start px-5 py-2.5 rounded-xl bg-brand-600 text-white font-semibold hover:bg-brand-700 transition">
+              打开书
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 书架 -->
+      <div class="mt-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold">书架</h3>
+          <span class="text-sm text-muted" id="shelf-count"></span>
+        </div>
+        <div id="book-grid" class="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div class="col-span-full text-center text-muted py-12"><i class="fa fa-circle-o-notch fa-spin mr-2"></i>书架加载中...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== 阅读页 ========== -->
+    <section id="content-read" class="hidden p-8 fade-in">
+      <div class="max-w-7xl mx-auto">
+
+        <div class="flex flex-wrap items-center gap-3 mb-6">
+          <select id="book-select" onchange="onBookChange()" class="px-4 py-2.5 rounded-xl bg-white border border-gray-200 focus:border-brand-500 outline-none text-sm max-w-xs">
+            <option value="">选择一本书...</option>
+          </select>
+          <div id="read-book-meta" class="text-sm text-muted"></div>
+          <div class="ml-auto flex items-center gap-2">
+            <button onclick="prevChapter()" id="prev-btn" class="px-4 py-2.5 rounded-xl bg-white shadow-soft text-sm hover:shadow-card transition disabled:opacity-50" disabled>
+              <i class="fa fa-arrow-left mr-1"></i>上一章
+            </button>
+            <button onclick="nextChapter()" id="next-btn" class="px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition disabled:opacity-50" disabled>
+              下一章<i class="fa fa-arrow-right ml-1"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="grid lg:grid-cols-[1fr_360px] gap-6">
+
+          <!-- 左：章节正文 -->
+          <div>
+            <!-- 章节目录 -->
+            <div class="bg-white rounded-2xl shadow-soft p-4 mb-5">
+              <div class="text-sm font-semibold mb-3 text-muted"><i class="fa fa-list mr-2"></i>章节目录</div>
+              <div id="chapter-list" class="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                <span class="text-muted text-sm">请先选择一本书</span>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-soft p-8">
+              <div id="read-loading" class="text-center text-muted py-16"><i class="fa fa-circle-o-notch fa-spin mr-2"></i>加载中...</div>
+              <div id="read-empty" class="text-center text-muted py-16">
+                <i class="fa fa-book text-4xl opacity-40"></i>
+                <p class="mt-4">从上方选择一本书，开始阅读</p>
+              </div>
+              <div id="read-content" class="hidden">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <div class="text-sm text-muted" id="read-chapter-no"></div>
+                    <h1 id="read-chapter-title" class="text-3xl font-extrabold mt-1"></h1>
+                  </div>
+                  <span id="read-chapter-words" class="bg-brand-50 text-brand-600 px-3 py-1 rounded-lg text-sm"></span>
+                </div>
+                <div class="prose-book text-lg text-ink mt-6" id="read-body"></div>
+                <div class="mt-8 pt-5 border-t border-gray-100 flex items-center justify-between text-sm text-muted">
+                  <span id="read-progress-text"></span>
+                  <span>阅读进度自动保存</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 右：AI 工具 -->
+          <div class="space-y-5">
+            <!-- 中文对照 -->
+            <div class="bg-white rounded-2xl shadow-soft p-6">
+              <div class="flex items-center justify-between mb-3">
+                <h4 class="font-bold">中文对照</h4>
+                <span class="text-xs text-muted">AI 翻译</span>
+              </div>
+              <button onclick="translateChapter()" id="translate-btn"
+                      class="w-full py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition disabled:opacity-60">
+                <i class="fa fa-language mr-1"></i>翻译本章（前 4500 字符）
+              </button>
+              <div id="translate-result" class="hidden mt-4 p-4 rounded-xl bg-brand-50 border border-brand-100 text-sm leading-7 text-ink max-h-72 overflow-y-auto"></div>
+            </div>
+
+            <!-- AI 问答 -->
+            <div class="bg-white rounded-2xl shadow-soft p-6">
+              <div class="flex items-center justify-between mb-3">
+                <h4 class="font-bold">AI 问答</h4>
+                <span class="text-xs text-muted">基于本章内容（RAG）</span>
+              </div>
+              <div id="qa-history" class="space-y-3 max-h-64 overflow-y-auto mb-3 hidden"></div>
+              <div class="flex gap-2">
+                <input id="qa-input" type="text" placeholder="例如：这一章发生了什么？"
+                       class="flex-1 px-3 py-2.5 rounded-xl bg-gray-50 border border-gray-200 focus:border-brand-500 outline-none text-sm" />
+                <button onclick="askQuestion()" id="qa-btn" class="px-4 py-2.5 rounded-xl bg-mint-600 text-white text-sm font-semibold hover:bg-mint-500 transition disabled:opacity-60">
+                  <i class="fa fa-send"></i>
+                </button>
+              </div>
+              <p class="text-xs text-muted mt-2">先选择书和章节，再提问效果最好</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== 水平测试页 ========== -->
+    <section id="content-test" class="hidden p-8 fade-in">
+      <div class="max-w-6xl mx-auto">
+
+        <!-- 测试入口 / 结果 -->
+        <div id="test-landing">
+          <div class="rounded-3xl bg-gradient-to-r from-mint-500 to-mint-600 p-8 text-white shadow-card relative overflow-hidden">
+            <div class="absolute -right-10 -bottom-16 w-72 h-72 bg-white/10 rounded-full blur-2xl"></div>
+            <div class="relative">
+              <div class="text-sm opacity-90">英语水平初步评估</div>
+              <h1 class="text-3xl font-extrabold mt-2">找到适合你的阅读难度</h1>
+              <p class="opacity-90 mt-3 max-w-xl">24 道选择题：词汇 / 语法 / 阅读理解 × A2~C1 四个等级，约 10 分钟。完成后推荐匹配难度的书目。</p>
+              <button onclick="startTest()" class="mt-6 px-6 py-3 rounded-xl bg-white text-mint-600 font-semibold hover:shadow-xl transition">
+                <i class="fa fa-play mr-1"></i><span id="start-test-text">开始测试</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 最近一次结果 -->
+          <div id="last-result" class="hidden mt-6"></div>
+        </div>
+
+        <!-- 答题中 -->
+        <div id="test-running" class="hidden">
+          <div class="flex items-center justify-between mb-6">
+            <div>
+              <div class="text-sm text-muted">英语水平初步评估</div>
+              <h1 class="text-3xl font-extrabold mt-1" id="test-dim-label"></h1>
+            </div>
+            <div class="text-right">
+              <div class="text-sm text-muted">进度</div>
+              <div class="font-bold text-lg" id="test-progress-label">1 / 24</div>
+            </div>
+          </div>
+          <div class="h-2 bg-gray-100 rounded-full overflow-hidden mb-6">
+            <div id="test-progress-bar" class="h-full bg-gradient-to-r from-brand-500 to-brand-400 rounded-full transition-all" style="width: 0%"></div>
+          </div>
+
+          <div class="bg-white rounded-2xl shadow-soft p-8">
+            <div class="flex items-center gap-2 text-sm text-muted mb-3">
+              <span id="test-dim-badge" class="px-3 py-1 rounded-lg bg-brand-50 text-brand-600 font-semibold"></span>
+              <span id="test-level-badge" class="px-3 py-1 rounded-lg bg-mint-50 text-mint-600 font-semibold"></span>
+              <span>选择一个答案</span>
+            </div>
+            <h2 id="test-question" class="text-xl font-bold leading-relaxed whitespace-pre-line"></h2>
+            <div id="test-options" class="grid md:grid-cols-2 gap-4 mt-6"></div>
+            <div class="flex items-center justify-between mt-8">
+              <button onclick="testPrev()" id="test-prev-btn" class="px-5 py-2.5 rounded-xl border border-gray-200 text-muted hover:bg-gray-50 transition disabled:opacity-50" disabled>
+                ← 上一题
+              </button>
+              <span class="text-sm text-muted" id="test-answered-label"></span>
+              <button onclick="testNext()" id="test-next-btn" class="px-5 py-2.5 rounded-xl bg-brand-600 text-white font-semibold hover:bg-brand-700 transition">
+                下一题 →
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 测试结果 -->
+        <div id="test-result" class="hidden"></div>
+      </div>
+    </section>
+
+    <!-- ========== 翻译页（仿翻译 App 风格） ========== -->
+    <section id="content-translate" class="hidden fade-in pb-10">
+      <div class="bg-gradient-to-b from-brand-50 to-transparent">
+        <div class="max-w-3xl mx-auto px-8">
+
+          <!-- 顶部标签页 -->
+          <div class="flex items-center gap-8 pt-4">
+            <button class="relative pb-3 text-lg font-bold text-ink border-b-2 border-brand-500">
+              翻译<span class="absolute left-1/2 -translate-x-1/2 -bottom-[5px] w-1.5 h-1.5 rounded-full bg-brand-500"></span>
+            </button>
+            <button onclick="toast('同传功能即将开放')" class="pb-3 text-lg text-muted hover:text-ink transition">同传</button>
+            <button onclick="toast('批改功能即将开放')" class="pb-3 text-lg text-muted hover:text-ink transition">批改</button>
+            <button onclick="toast('口语功能即将开放')" class="pb-3 text-lg text-muted hover:text-ink transition">口语</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="max-w-3xl mx-auto px-8">
+
+        <!-- 语言选择条 -->
+        <div class="bg-white rounded-2xl shadow-soft px-5 py-3.5 flex items-center gap-3 -mt-1">
+          <select id="src-lang" class="flex-1 bg-transparent text-lg font-medium outline-none cursor-pointer">
+            <option value="auto">自动检测</option>
+            <option value="zh" selected>简体中文</option>
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+            <option value="ko">한국어</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+            <option value="es">Español</option>
+            <option value="ru">Русский</option>
+          </select>
+          <button onclick="swapLangs()" title="交换语言" class="w-9 h-9 rounded-full hover:bg-brand-50 text-brand-600 transition shrink-0">
+            <i class="fa fa-exchange"></i>
+          </button>
+          <select id="tgt-lang" class="flex-1 bg-transparent text-lg font-medium outline-none cursor-pointer">
+            <option value="zh">简体中文</option>
+            <option value="en" selected>English</option>
+            <option value="ja">日本語</option>
+            <option value="ko">한국어</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+            <option value="es">Español</option>
+            <option value="ru">Русский</option>
+          </select>
+          <!-- 大模型选择（预留：付费通道未接入） -->
+          <div class="hidden md:flex items-center gap-1.5 pl-3 border-l border-gray-100 shrink-0">
+            <span class="w-5 h-5 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white text-[10px]"><i class="fa fa-magic"></i></span>
+            <select id="model-select" class="bg-transparent text-sm text-muted outline-none cursor-pointer">
+              <option value="deepseek">AI 大模型</option>
+              <option value="gpt" disabled>GPT-4o（即将开放）</option>
+              <option value="ernie" disabled>文心一言（即将开放）</option>
+              <option value="qwen" disabled>通义千问（即将开放）</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 输入区 -->
+        <div class="bg-white rounded-b-2xl shadow-soft px-5 pt-5 pb-4">
+          <textarea id="translate-input" rows="6" maxlength="5000"
+                    placeholder="请输入或粘贴需要翻译的内容"
+                    class="w-full px-1 bg-transparent outline-none resize-none text-xl leading-8 placeholder:text-gray-300"></textarea>
+
+          <!-- 译文区 -->
+          <div id="translate-output" class="hidden border-t border-gray-100 pt-4 mt-2 text-lg leading-8 text-ink whitespace-pre-line"></div>
+
+          <div class="flex items-center gap-2 mt-4">
+            <span id="src-count" class="text-xs text-muted">0 / 5000</span>
+            <button onclick="pasteText()" class="px-3 py-1 rounded-full bg-brand-50 text-brand-600 text-sm hover:bg-brand-100 transition">粘贴</button>
+            <button onclick="copyResult()" id="copy-btn" class="hidden px-3 py-1 rounded-full bg-mint-50 text-mint-600 text-sm hover:bg-mint-100 transition"><i class="fa fa-clipboard mr-1"></i>复制</button>
+
+            <div class="ml-auto flex items-center gap-2.5">
+              <button onclick="toast('录音功能即将开放')" class="px-5 py-2 rounded-full bg-brand-50 text-brand-600 text-sm font-medium hover:bg-brand-100 transition">
+                <i class="fa fa-microphone mr-1"></i>录音
+              </button>
+              <button onclick="doTranslate()" id="translate-page-btn"
+                      class="px-7 py-2 rounded-full bg-gradient-to-r from-brand-500 to-brand-400 text-white text-sm font-semibold shadow-glow hover:shadow-xl transition disabled:opacity-60">
+                翻 译
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 翻译历史 -->
+        <div class="mt-8">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm text-muted">翻译历史</h3>
+            <button onclick="clearHistory()" class="text-xs text-muted hover:text-red-500 transition">清空全部</button>
+          </div>
+          <div id="history-list"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- 全局提示 -->
+<div id="toast" class="hidden fixed bottom-8 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-xl shadow-card text-white text-sm"></div>
+
+<script>
+  // ================= 基础工具 =================
+  const API_BASE = 'http://127.0.0.1:8002';
+  const TOKEN_KEY = 'era_access_token';
+  const USER_KEY = 'era_username';
+  const LAST_BOOK_KEY = 'era_last_book';
+
+  // 未登录跳回登录页
+  if (!localStorage.getItem(TOKEN_KEY)) location.href = 'index.html';
+
+  async function api(path, { method = 'GET', body } = {}) {
+    const resp = await fetch(API_BASE + path, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + localStorage.getItem(TOKEN_KEY),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (resp.status === 401) {
+      localStorage.clear();
+      location.href = 'index.html';
+      throw new Error('登录已过期');
+    }
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      let msg = data.detail || `请求失败（${resp.status}）`;
+      if (Array.isArray(msg)) msg = msg[0].msg;
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  function toast(text, type = 'error') {
+    const el = document.getElementById('toast');
+    el.className = 'fixed bottom-8 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-xl shadow-card text-white text-sm ' +
+      (type === 'error' ? 'bg-red-500' : 'bg-mint-600');
+    el.textContent = text;
+    el.classList.remove('hidden');
+    clearTimeout(el._timer);
+    el._timer = setTimeout(() => el.classList.add('hidden'), 3000);
+  }
+
+  // 封面渐变色（按书籍 id 稳定分配）
+  const COVERS = [
+    'from-brand-400 to-brand-700', 'from-emerald-400 to-emerald-700',
+    'from-amber-400 to-orange-600', 'from-sky-400 to-blue-700',
+    'from-violet-400 to-purple-700', 'from-rose-400 to-pink-700',
+    'from-teal-400 to-cyan-700', 'from-indigo-400 to-indigo-700',
+  ];
+  function coverClass(id) { return COVERS[id % COVERS.length]; }
+
+  function coverHtml(book, extra = 'h-44') {
+    // 真实封面（Open Library）；加载失败回退到按书 ID 生成的渐变占位
+    const grad = `<div class="${extra} rounded-2xl bg-gradient-to-br ${coverClass(book.id)} shadow-card flex items-end p-4 text-white">
+      <div><div class="text-xs opacity-80">${book.author} · ${book.year || ''}</div>
+      <div class="font-bold mt-1">${book.title}</div></div></div>`;
+    if (!book.cover_url) return grad;
+    return `<div class="${extra} rounded-2xl shadow-card overflow-hidden relative bg-gray-100"
+                 data-fallback="${encodeURIComponent(grad)}">
+      <img src="${book.cover_url}" alt="${book.title}" loading="lazy"
+           class="w-full h-full object-cover"
+           onerror="this.parentElement.innerHTML = decodeURIComponent(this.parentElement.dataset.fallback)" />
+    </div>`;
+  }
+
+  const LEVEL_NAMES = { A1: '入门', A2: '基础', B1: '中级', B2: '中高级', C1: '高级' };
+
+  // ================= 全局状态 =================
+  let ALL_BOOKS = [];
+  let MY_LEVEL = null;       // 最近测试等级
+  let CURRENT_CHAPTERS = []; // 当前书的章节目录
+  let CURRENT = null;        // { book, chapterIndex, chapter }
+  let TEST_PAPER = null;     // 测试题目
+  let TEST_ANSWERS = [];     // 每题已选选项
+  let TEST_INDEX = 0;
+
+  // ================= 页面切换 =================
+  const TITLES = { home: '学习中心', read: '阅读', test: '水平测试', translate: '翻译' };
+  function switchPage(name) {
+    ['home', 'read', 'test', 'translate'].forEach(p => document.getElementById('content-' + p).classList.add('hidden'));
+    document.querySelectorAll('.nav-item').forEach(item => {
+      const on = item.dataset.page === name;
+      item.classList.toggle('active', on);
+      item.classList.toggle('bg-brand-50', on);
+      item.classList.toggle('text-brand-700', on);
+      item.classList.toggle('font-semibold', on);
+      item.classList.toggle('text-muted', !on);
+    });
+    document.getElementById('content-' + name).classList.remove('hidden');
+    document.getElementById('page-title').innerText = TITLES[name];
+    if (name === 'test' && !TEST_PAPER) initTestPage();
+  }
+
+  // ================= 登录态 =================
+  async function initUser() {
+    const username = localStorage.getItem(USER_KEY) || '';
+    document.getElementById('side-username').textContent = username;
+    document.getElementById('topbar-username').textContent = username;
+    document.getElementById('topbar-avatar').textContent = (username[0] || 'R').toUpperCase();
+    const hour = new Date().getHours();
+    const hello = hour < 6 ? '夜深了' : hour < 12 ? '早上好' : hour < 18 ? '下午好' : '晚上好';
+    document.getElementById('home-greeting').textContent = `${hello}，${username} 👋`;
+    try {
+      const result = await api('/level-test/result');
+      MY_LEVEL = result.level;
+    } catch { MY_LEVEL = null; }
+    const levelText = MY_LEVEL ? `${MY_LEVEL} ${LEVEL_NAMES[MY_LEVEL] || ''}` : '未测试';
+    document.getElementById('side-level').textContent = '等级：' + levelText;
+    document.getElementById('topbar-level').textContent = '等级：' + levelText;
+  }
+
+  function doLogout() {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(LAST_BOOK_KEY);
+    location.href = 'index.html';
+  }
+
+  // ================= 首页 =================
+  async function initHome() {
+    // 并行拉书籍与最近测试结果
+    const books = await api('/books');
+    ALL_BOOKS = books;
+    document.getElementById('stat-books').textContent = books.length;
+    document.getElementById('stat-level').textContent = MY_LEVEL || '未测试';
+    document.getElementById('shelf-count').textContent = `共 ${books.length} 本`;
+
+    const last = JSON.parse(localStorage.getItem(LAST_BOOK_KEY) || 'null');
+    document.getElementById('stat-reading').textContent = last ? '进行中' : '未开始';
+
+    // 书架
+    const grid = document.getElementById('book-grid');
+    grid.innerHTML = books.map(b => `
+      <div class="bg-white rounded-2xl shadow-soft overflow-hidden hover:shadow-card transition cursor-pointer group"
+           onclick="openBook(${b.id})">
+        ${coverHtml(b)}
+        <div class="p-4">
+          <p class="text-sm text-muted line-clamp-2 h-10">${b.synopsis || '暂无简介'}</p>
+          <div class="flex items-center justify-between mt-3">
+            <span class="text-xs text-muted">${b.word_count ? (b.word_count / 10000).toFixed(1) + ' 万词' : ''}</span>
+            <span class="text-xs bg-brand-50 text-brand-600 px-2 py-1 rounded-lg">${b.genre || 'Classic'}</span>
+          </div>
+        </div>
+      </div>`).join('');
+
+    // 继续阅读卡片（localStorage 记录上次书目）
+    if (last && books.some(b => b.id === last.book_id)) {
+      const book = books.find(b => b.id === last.book_id);
+      document.getElementById('continue-card').classList.remove('hidden');
+      document.getElementById('continue-cover').innerHTML = coverHtml(book);
+      document.getElementById('continue-title').textContent = book.title;
+      document.getElementById('continue-meta').textContent = `第 ${last.chapter_index} 章 · 已读 ${Math.round(last.percent)}%`;
+      document.getElementById('continue-progress').textContent = `上次阅读到第 ${last.chapter_index} 章，全书进度约 ${Math.round(last.percent)}%。`;
+      document.getElementById('home-sub').textContent = `上次读到《${book.title}》第 ${last.chapter_index} 章，继续吧。`;
+    }
+  }
+
+  function openContinue() {
+    const last = JSON.parse(localStorage.getItem(LAST_BOOK_KEY) || 'null');
+    if (!last) return;
+    openBook(last.book_id, last.chapter_index);
+  }
+
+  // ================= 阅读页 =================
+  function initReadingSelect() {
+    const sel = document.getElementById('book-select');
+    sel.innerHTML = '<option value="">选择一本书...</option>' +
+      ALL_BOOKS.map(b => `<option value="${b.id}">${b.title}</option>`).join('');
+  }
+
+  async function openBook(bookId, chapterIndex = 1) {
+    switchPage('read');
+    document.getElementById('book-select').value = String(bookId);
+    await onBookChange(chapterIndex);
+  }
+
+  async function onBookChange(chapterIndex = 1) {
+    const bookId = parseInt(document.getElementById('book-select').value);
+    CURRENT = null;
+    document.getElementById('translate-result').classList.add('hidden');
+    document.getElementById('qa-history').classList.add('hidden');
+    document.getElementById('qa-history').innerHTML = '';
+    if (!bookId) {
+      document.getElementById('read-content').classList.add('hidden');
+      document.getElementById('read-empty').classList.remove('hidden');
+      return;
+    }
+    const book = ALL_BOOKS.find(b => b.id === bookId);
+    document.getElementById('read-book-meta').textContent = `${book.author} · ${book.year} · ${book.word_count ? (book.word_count / 10000).toFixed(1) + ' 万词' : ''}`;
+
+    // 章节目录
+    CURRENT_CHAPTERS = await api(`/books/${bookId}/chapters`);
+    document.getElementById('chapter-list').innerHTML = CURRENT_CHAPTERS.map(c =>
+      `<button data-ch="${c.chapter_index}" onclick="loadChapter(${c.chapter_index})"
+        class="ch-btn px-3 py-1.5 rounded-lg text-sm border transition border-gray-200 hover:border-brand-400 text-muted">
+        ${c.chapter_index}. ${c.title}</button>`).join('');
+
+    // 恢复上次进度：未指定章节时读服务端进度
+    if (!chapterIndex || chapterIndex < 1) {
+      try {
+        const p = await api(`/reading/progress/${bookId}`);
+        chapterIndex = Math.min(p.chapter_index, CURRENT_CHAPTERS.length) || 1;
+      } catch { chapterIndex = 1; }
+    }
+    await loadChapter(chapterIndex);
+  }
+
+  async function loadChapter(chapterIndex) {
+    if (!CURRENT_CHAPTERS.length) return;
+    chapterIndex = Math.max(1, Math.min(chapterIndex, CURRENT_CHAPTERS.length));
+    const bookId = parseInt(document.getElementById('book-select').value);
+    document.getElementById('read-loading').classList.remove('hidden');
+    document.getElementById('read-content').classList.add('hidden');
+    document.getElementById('read-empty').classList.add('hidden');
+    try {
+      const chapter = await api(`/books/${bookId}/chapters/${chapterIndex}`);
+      const book = ALL_BOOKS.find(b => b.id === bookId);
+      CURRENT = { book, chapterIndex, chapter };
+
+      document.getElementById('read-chapter-no').textContent = book.title;
+      document.getElementById('read-chapter-title').textContent = `第 ${chapter.chapter_index} 章 ${chapter.title}`;
+      document.getElementById('read-chapter-words').textContent = `${chapter.word_count} 词`;
+      document.getElementById('read-body').innerHTML = chapter.content
+        .split(/\n\s*\n/).filter(p => p.trim())
+        .map(p => `<p>${p.trim().replace(/</g, '&lt;')}</p>`).join('');
+
+      const percent = (chapter.chapter_index / CURRENT_CHAPTERS.length) * 100;
+      document.getElementById('read-progress-text').textContent =
+        `第 ${chapter.chapter_index} / ${CURRENT_CHAPTERS.length} 章 · 约 ${Math.round(percent)}%`;
+
+      // 高亮章节目录当前章
+      document.querySelectorAll('.ch-btn').forEach(btn => {
+        const on = parseInt(btn.dataset.ch) === chapter.chapter_index;
+        btn.classList.toggle('bg-brand-50', on);
+        btn.classList.toggle('border-brand-400', on);
+        btn.classList.toggle('text-brand-700', on);
+      });
+      document.getElementById('prev-btn').disabled = chapter.chapter_index <= 1;
+      document.getElementById('next-btn').disabled = chapter.chapter_index >= CURRENT_CHAPTERS.length;
+
+      document.getElementById('read-loading').classList.add('hidden');
+      document.getElementById('read-content').classList.remove('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      // 保存进度并记录最近书目
+      saveProgress(percent);
+      localStorage.setItem(LAST_BOOK_KEY, JSON.stringify({ book_id: bookId, chapter_index: chapter.chapter_index, percent }));
+    } catch (err) {
+      document.getElementById('read-loading').classList.add('hidden');
+      document.getElementById('read-empty').classList.remove('hidden');
+      toast(err.message);
+    }
+  }
+
+  async function saveProgress(percent) {
+    if (!CURRENT) return;
+    try {
+      await api(`/reading/progress/${CURRENT.book.id}`, {
+        method: 'PUT',
+        body: { chapter_index: CURRENT.chapterIndex, char_offset: 0, percent: Math.min(percent, 100) },
+      });
+    } catch { /* 进度保存失败不阻塞阅读 */ }
+  }
+
+  function prevChapter() { if (CURRENT) loadChapter(CURRENT.chapterIndex - 1); }
+  function nextChapter() { if (CURRENT) loadChapter(CURRENT.chapterIndex + 1); }
+
+  // 中文对照：调用翻译接口（超长章节截断，接口上限 5000）
+  async function translateChapter() {
+    if (!CURRENT) { toast('请先选择一本书'); return; }
+    const btn = document.getElementById('translate-btn');
+    const box = document.getElementById('translate-result');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-circle-o-notch fa-spin mr-1"></i>翻译中，约需十几秒...';
+    try {
+      const result = await api('/translate', {
+        method: 'POST',
+        body: { text: CURRENT.chapter.content.slice(0, 4500), target_lang: '中文' },
+      });
+      box.textContent = result.translation;
+      box.classList.remove('hidden');
+    } catch (err) {
+      toast('翻译失败：' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa fa-language mr-1"></i>翻译本章（前 4500 字符）';
+    }
+  }
+
+  // AI 问答（RAG，限定当前章节）
+  async function askQuestion() {
+    if (!CURRENT) { toast('请先选择一本书和章节'); return; }
+    const input = document.getElementById('qa-input');
+    const question = input.value.trim();
+    if (!question) return;
+    const btn = document.getElementById('qa-btn');
+    btn.disabled = true; input.disabled = true;
+    const history = document.getElementById('qa-history');
+    history.classList.remove('hidden');
+    history.insertAdjacentHTML('beforeend',
+      `<div class="p-3 rounded-xl bg-brand-50 text-sm self-end"><b>我：</b>${question.replace(/</g, '&lt;')}</div>
+       <div id="qa-pending" class="p-3 rounded-xl bg-gray-50 text-sm text-muted"><i class="fa fa-circle-o-notch fa-spin mr-1"></i>AI 思考中...</div>`);
+    try {
+      const result = await api('/ask/reading', {
+        method: 'POST',
+        body: { book_id: CURRENT.book.id, chapter_index: CURRENT.chapterIndex, question },
+      });
+      document.getElementById('qa-pending').outerHTML =
+        `<div class="p-3 rounded-xl bg-mint-50 border border-mint-100 text-sm whitespace-pre-line">${result.answer.replace(/</g, '&lt;')}</div>`;
+    } catch (err) {
+      document.getElementById('qa-pending').outerHTML =
+        `<div class="p-3 rounded-xl bg-red-50 text-sm text-red-600">回答失败：${err.message}</div>`;
+    } finally {
+      btn.disabled = false; input.disabled = false;
+      input.value = '';
+      history.scrollTop = history.scrollHeight;
+    }
+  }
+
+  // ================= 水平测试页 =================
+  const DIM_NAMES = { vocabulary: '词汇', grammar: '语法', reading: '阅读理解' };
+
+  async function initTestPage() {
+    // 已有结果则先展示
+    try {
+      const result = await api('/level-test/result');
+      document.getElementById('last-result').classList.remove('hidden');
+      document.getElementById('last-result').innerHTML = renderResult(result, true);
+      document.getElementById('start-test-text').textContent = '重新测试';
+    } catch { /* 从未测试过 */ }
+  }
+
+  async function startTest() {
+    try {
+      TEST_PAPER = await api('/level-test/questions');
+    } catch (err) { toast(err.message); return; }
+    TEST_ANSWERS = new Array(TEST_PAPER.questions.length).fill(null);
+    TEST_INDEX = 0;
+    document.getElementById('test-landing').classList.add('hidden');
+    document.getElementById('test-result').classList.add('hidden');
+    document.getElementById('test-running').classList.remove('hidden');
+    renderQuestion();
+  }
+
+  function renderQuestion() {
+    const q = TEST_PAPER.questions[TEST_INDEX];
+    document.getElementById('test-dim-label').textContent = `第 ${TEST_INDEX + 1} 题`;
+    document.getElementById('test-dim-badge').textContent = DIM_NAMES[q.dimension] || q.dimension;
+    document.getElementById('test-level-badge').textContent = '难度 ' + q.level;
+    document.getElementById('test-question').textContent = q.text;
+    document.getElementById('test-progress-label').textContent = `${TEST_INDEX + 1} / ${TEST_PAPER.questions.length}`;
+    document.getElementById('test-progress-bar').style.width = ((TEST_INDEX + 1) / TEST_PAPER.questions.length * 100) + '%';
+    const answered = TEST_ANSWERS.filter(a => a !== null).length;
+    document.getElementById('test-answered-label').textContent = `已答 ${answered} / ${TEST_PAPER.questions.length}`;
+
+    document.getElementById('test-options').innerHTML = q.options.map((opt, i) => `
+      <div onclick="pickOption(${i})" data-opt="${i}"
+        class="opt-card border-2 rounded-xl p-4 cursor-pointer transition
+        ${TEST_ANSWERS[TEST_INDEX] === i ? 'border-brand-500 bg-brand-50' : 'border-gray-100 hover:border-brand-400'}">
+        <b>${'ABCD'[i]}.</b> ${opt.replace(/</g, '&lt;')}
+      </div>`).join('');
+
+    document.getElementById('test-prev-btn').disabled = TEST_INDEX === 0;
+    const last = TEST_INDEX === TEST_PAPER.questions.length - 1;
+    document.getElementById('test-next-btn').innerHTML = last ? '提交测试 <i class="fa fa-check ml-1"></i>' : '下一题 →';
+  }
+
+  function pickOption(i) {
+    TEST_ANSWERS[TEST_INDEX] = i;
+    document.querySelectorAll('.opt-card').forEach(card => {
+      const on = parseInt(card.dataset.opt) === i;
+      card.classList.toggle('border-brand-500', on);
+      card.classList.toggle('bg-brand-50', on);
+      card.classList.toggle('border-gray-100', !on);
+    });
+    const answered = TEST_ANSWERS.filter(a => a !== null).length;
+    document.getElementById('test-answered-label').textContent = `已答 ${answered} / ${TEST_PAPER.questions.length}`;
+  }
+
+  function testPrev() { if (TEST_INDEX > 0) { TEST_INDEX--; renderQuestion(); } }
+
+  function testNext() {
+    if (TEST_ANSWERS[TEST_INDEX] === null) { toast('请先选择一个答案'); return; }
+    if (TEST_INDEX < TEST_PAPER.questions.length - 1) { TEST_INDEX++; renderQuestion(); return; }
+    // 最后一题：检查漏答后提交
+    const missing = TEST_ANSWERS.findIndex(a => a === null);
+    if (missing !== -1) {
+      toast(`第 ${missing + 1} 题还没作答，已为你跳转过去`);
+      TEST_INDEX = missing;
+      renderQuestion();
+      return;
+    }
+    submitTest();
+  }
+
+  async function submitTest() {
+    const btn = document.getElementById('test-next-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-circle-o-notch fa-spin mr-1"></i>评分中...';
+    try {
+      const result = await api('/level-test/submit', {
+        method: 'POST',
+        body: { answers: TEST_PAPER.questions.map((q, i) => ({ question_id: q.id, choice: TEST_ANSWERS[i] })) },
+      });
+      MY_LEVEL = result.level;
+      document.getElementById('side-level').textContent = '等级：' + result.level;
+      document.getElementById('topbar-level').textContent = '等级：' + result.level;
+      document.getElementById('stat-level').textContent = result.level;
+      document.getElementById('test-running').classList.add('hidden');
+      document.getElementById('test-result').classList.remove('hidden');
+      document.getElementById('test-result').innerHTML = renderResult(result, false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      toast('提交失败：' + err.message);
+      btn.disabled = false;
+      btn.innerHTML = '提交测试 <i class="fa fa-check ml-1"></i>';
+    }
+  }
+
+  function renderResult(r, isLast) {
+    const dims = [
+      ['词汇', r.vocabulary_acc], ['语法', r.grammar_acc], ['阅读理解', r.reading_acc],
+    ];
+    const detailRows = Object.entries(r.level_detail || {})
+      .map(([lv, text]) => `<div class="flex justify-between text-sm"><span class="text-muted">${lv} ${LEVEL_NAMES[lv] || ''}</span><span class="font-semibold">${text}</span></div>`).join('');
+    const recCards = (r.recommendations || []).map(b => `
+      <div onclick="openBook(${b.book_id})" class="bg-white rounded-2xl shadow-soft overflow-hidden hover:shadow-card transition cursor-pointer">
+        ${coverHtml(b, 'h-28')}
+        <div class="p-3 text-xs text-muted">${b.author} · 平均章节 ${Math.round(b.avg_chapter_words)} 词</div>
+      </div>`).join('');
+
+    return `
+      <div class="rounded-3xl bg-gradient-to-br from-brand-600 to-brand-400 p-8 text-white shadow-glow relative overflow-hidden">
+        <div class="absolute -right-10 -top-10 w-64 h-64 bg-white/10 rounded-full blur-2xl"></div>
+        <div class="relative flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div class="text-sm opacity-90">${isLast ? '上次测试结果 · 英语水平初步评估' : '测试完成 · 英语水平初步评估'}</div>
+            <div class="text-4xl font-extrabold mt-2">${r.level} <span class="text-lg font-semibold opacity-90">${LEVEL_NAMES[r.level] || ''}</span></div>
+            <p class="text-sm opacity-90 mt-2">总分 ${r.total_score} / ${r.max_score} · 推荐阅读难度 ${r.recommended_level}（题量有限，结果供参考）</p>
+          </div>
+          <button onclick="startTest()" class="px-6 py-3 rounded-xl bg-white text-brand-600 font-semibold hover:shadow-xl transition">再测一次</button>
+        </div>
+      </div>
+
+      <div class="grid lg:grid-cols-[1fr_320px] gap-6 mt-6">
+        <div class="bg-white rounded-2xl shadow-soft p-6">
+          <h4 class="font-bold mb-4">能力分析</h4>
+          ${dims.map(([name, acc]) => `
+            <div class="mb-4">
+              <div class="flex justify-between text-sm mb-1"><span class="text-muted">${name}</span><span class="font-semibold">${Math.round(acc * 100)}%</span></div>
+              <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div class="h-full bg-gradient-to-r from-brand-500 to-brand-400 rounded-full" style="width: ${Math.round(acc * 100)}%"></div>
+              </div>
+            </div>`).join('')}
+          <div class="mt-4 pt-4 border-t border-gray-100 space-y-2">${detailRows}</div>
+          <p class="text-xs text-muted mt-4">${(r.analysis && r.analysis.overall) || ''}</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow-soft p-6">
+          <h4 class="font-bold mb-4">推荐书目（点击开始阅读）</h4>
+          <div class="space-y-3">${recCards || '<p class="text-sm text-muted">暂无推荐</p>'}</div>
+        </div>
+      </div>`;
+  }
+
+  // ================= 翻译页（仿翻译 App 风格） =================
+  const TRANS_HISTORY_KEY = 'era_translate_history';
+  const LANG_NAMES = {
+    auto: '自动检测', zh: '简体中文', en: 'English', ja: '日本語', ko: '한국어',
+    fr: 'Français', de: 'Deutsch', es: 'Español', ru: 'Русский',
+  };
+  // 传给后端 LLM 的语言表述
+  const LANG_PROMPTS = {
+    zh: '中文', en: 'English', ja: '日语', ko: '韩语',
+    fr: '法语', de: '德语', es: '西班牙语', ru: '俄语',
+  };
+
+  function langPair() {
+    const src = document.getElementById('src-lang').value;
+    const tgt = document.getElementById('tgt-lang').value;
+    return {
+      source_lang: src === 'auto' ? 'auto' : LANG_PROMPTS[src],
+      target_lang: LANG_PROMPTS[tgt],
+      label: `${LANG_NAMES[src]} → ${LANG_NAMES[tgt]}`,
+    };
+  }
+
+  function swapLangs() {
+    const srcSel = document.getElementById('src-lang');
+    const tgtSel = document.getElementById('tgt-lang');
+    if (srcSel.value === 'auto') { toast('自动检测语言无法换向，请先选择具体语言'); return; }
+    [srcSel.value, tgtSel.value] = [tgtSel.value, srcSel.value];
+  }
+
+  document.getElementById('translate-input').addEventListener('input', e => {
+    document.getElementById('src-count').textContent = `${e.target.value.length} / 5000`;
+  });
+
+  async function pasteText() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) { toast('剪贴板为空'); return; }
+      const input = document.getElementById('translate-input');
+      input.value = text.slice(0, 5000);
+      document.getElementById('src-count').textContent = `${input.value.length} / 5000`;
+    } catch {
+      toast('无法读取剪贴板，请手动粘贴（Ctrl+V）');
+    }
+  }
+
+  async function doTranslate() {
+    const input = document.getElementById('translate-input');
+    const text = input.value.trim();
+    if (!text) { toast('请输入要翻译的内容'); return; }
+    if (text.length > 5000) { toast('文本超过 5000 字符上限'); return; }
+
+    const { source_lang, target_lang, label } = langPair();
+    const model = document.getElementById('model-select').value;
+    const btn = document.getElementById('translate-page-btn');
+    const output = document.getElementById('translate-output');
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa fa-circle-o-notch fa-spin mr-1"></i>翻译中';
+    output.classList.remove('hidden');
+    output.innerHTML = '<span class="text-muted"><i class="fa fa-circle-o-notch fa-spin mr-1"></i>AI 大模型翻译中，约需十几秒...</span>';
+    try {
+      const result = await api('/translate', {
+        method: 'POST',
+        body: { text, source_lang, target_lang, provider: model },
+      });
+      output.textContent = result.translation;
+      document.getElementById('copy-btn').classList.remove('hidden');
+      addHistory({ text, translation: result.translation, label, time: new Date().toLocaleString('zh-CN') });
+    } catch (err) {
+      output.innerHTML = `<span class="text-red-500">翻译失败：${err.message.replace(/</g, '&lt;')}</span>`;
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '翻 译';
+    }
+  }
+
+  function copyResult() {
+    const text = document.getElementById('translate-output').textContent;
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => toast('已复制到剪贴板', 'ok'));
+  }
+
+  function readHistory() {
+    try { return JSON.parse(localStorage.getItem(TRANS_HISTORY_KEY) || '[]'); }
+    catch { return []; }
+  }
+
+  function addHistory(item) {
+    const list = readHistory();
+    list.unshift(item);
+    localStorage.setItem(TRANS_HISTORY_KEY, JSON.stringify(list.slice(0, 50)));
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const list = readHistory();
+    const box = document.getElementById('history-list');
+    if (!list.length) {
+      box.innerHTML = '<p class="text-sm text-muted py-4">暂无翻译记录</p>';
+      return;
+    }
+    box.innerHTML = list.map((h, i) => `
+      <div class="group flex items-start gap-3 py-4 border-b border-gray-100 cursor-pointer hover:bg-brand-50/40 rounded-lg px-2 -mx-2 transition"
+           onclick="useHistory(${i})">
+        <div class="flex-1 min-w-0">
+          <p class="text-lg font-semibold text-ink truncate">${h.text.replace(/</g, '&lt;')}</p>
+          <p class="text-muted mt-0.5 truncate">${h.translation.replace(/</g, '&lt;')}</p>
+          <span class="text-xs text-gray-300 mt-1 inline-block">${h.label} · ${h.time}</span>
+        </div>
+        <button onclick="event.stopPropagation(); deleteHistory(${i})"
+                class="w-7 h-7 rounded-full text-gray-300 hover:text-red-500 hover:bg-red-50 transition shrink-0 opacity-60 group-hover:opacity-100">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>`).join('');
+  }
+
+  function useHistory(i) {
+    const h = readHistory()[i];
+    if (!h) return;
+    document.getElementById('translate-input').value = h.text;
+    document.getElementById('src-count').textContent = `${h.text.length} / 5000`;
+    const output = document.getElementById('translate-output');
+    output.textContent = h.translation;
+    output.classList.remove('hidden');
+    document.getElementById('copy-btn').classList.remove('hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function deleteHistory(i) {
+    const list = readHistory();
+    list.splice(i, 1);
+    localStorage.setItem(TRANS_HISTORY_KEY, JSON.stringify(list));
+    renderHistory();
+  }
+
+  function clearHistory() {
+    localStorage.removeItem(TRANS_HISTORY_KEY);
+    renderHistory();
+    toast('已清空翻译历史', 'ok');
+  }
+
+  // ================= 初始化 =================
+  (async function init() {
+    try {
+      await initUser();
+      await initHome();
+      initReadingSelect();
+    } catch (err) {
+      toast('初始化失败：' + err.message);
+    }
+    renderHistory();
+  })();
+
+  // 回车提问
+  document.getElementById('qa-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') askQuestion();
+  });
+</script>
+
+</body>
+</html>

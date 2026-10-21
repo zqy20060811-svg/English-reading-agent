@@ -46,6 +46,7 @@ class BookRecommendation(BaseModel):
     book_id: int
     title: str
     author: str
+    cover_url: str | None = None  # 封面图 URL（可能为空，前端渐变兜底）
     avg_chapter_words: float
 
 

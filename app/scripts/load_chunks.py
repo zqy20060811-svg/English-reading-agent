@@ -1,8 +1,9 @@
 """命令行：对全部章节递归字符分块，写入 book_chunks 表（幂等全量重建）。
 
 用法：
-    python -m app.scripts.load_chunks            # 分块并入库
-    python -m app.scripts.load_chunks --dry-run  # 仅预览统计，不写库
+    python -m app.scripts.load_chunks                    # 分块并入库（全部书）
+    python -m app.scripts.load_chunks --book 15          # 只处理某本古登堡 ID 的书
+    python -m app.scripts.load_chunks --dry-run          # 仅预览统计，不写库
 """
 import asyncio
 from collections import Counter
@@ -16,7 +17,7 @@ from app.models.book_chapter import BookChapter
 from app.models.book_chunk import BookChunk
 
 
-async def main(dry_run: bool) -> None:
+async def main(dry_run: bool, gutenberg_id: int | None = None) -> None:
     async with AsyncSessionLocal() as s:
         if dry_run:
             rows = (await s.execute(select(BookChapter.content))).all()
@@ -30,10 +31,14 @@ async def main(dry_run: bool) -> None:
                 print(f"  {bucket * 200:>5}-{bucket * 200 + 199:<5} 字符: {sizes[bucket]} 块")
             return
 
-        # 幂等全量重建：按章节清空旧块再写入
-        rows = (
-            await s.execute(select(BookChapter.id, BookChapter.book_id, BookChapter.content))
-        ).all()
+        # 可选：只处理指定古登堡 ID 的书（用于单书重建，不动其他书的向量块）
+        stmt = select(BookChapter.id, BookChapter.book_id, BookChapter.content)
+        if gutenberg_id is not None:
+            stmt = (
+                stmt.where(BookChapter.book_id == Book.id)
+                .where(Book.gutenberg_id == gutenberg_id)
+            )
+        rows = (await s.execute(stmt)).all()
         total = 0
         for chapter_id, book_id, content in rows:
             await s.execute(delete(BookChunk).where(BookChunk.chapter_id == chapter_id))
@@ -52,6 +57,11 @@ async def main(dry_run: bool) -> None:
 
 
 if __name__ == "__main__":
+    import argparse
     import sys
 
-    asyncio.run(main("--dry-run" in sys.argv))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dry-run", action="store_true", help="仅预览统计，不写库")
+    parser.add_argument("--book", type=int, help="只处理指定古登堡 ID 的书")
+    args = parser.parse_args()
+    asyncio.run(main(args.dry_run, args.book))

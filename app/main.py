@@ -29,6 +29,7 @@ async def lifespan(app: FastAPI):
     # 简化处理：启动时先启用 pgvector 扩展与全文索引再自动建表；生产环境建议改用 Alembic 迁移
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        await conn.execute(text("ALTER TABLE IF EXISTS books ADD COLUMN IF NOT EXISTS cover_url VARCHAR(512)"))
         await conn.run_sync(Base.metadata.create_all)
         # 全文检索（ts_rank）关键词路的表达式 GIN 索引（表达式必须与查询中的完全一致才能命中索引）
         await conn.execute(

@@ -9,11 +9,19 @@ from app.models.level_test_result import LevelTestResult
 class BookDifficultyRow:
     """书目难度聚合行（books LEFT JOIN book_chapters 的平均章节词数）"""
 
-    def __init__(self, book_id: int, title: str, author: str, avg_chapter_words: float):
+    def __init__(
+        self,
+        book_id: int,
+        title: str,
+        author: str,
+        avg_chapter_words: float,
+        cover_url: str | None = None,
+    ):
         self.book_id = book_id
         self.title = title
         self.author = author
         self.avg_chapter_words = round(float(avg_chapter_words), 1)
+        self.cover_url = cover_url
 
 
 class LevelTestRepository:
@@ -57,11 +65,12 @@ class LevelTestRepository:
                 Book.id,
                 Book.title,
                 Book.author,
+                Book.cover_url,
                 func.coalesce(func.avg(BookChapter.word_count), math.inf).label("avg_words"),
             )
             .join(BookChapter, BookChapter.book_id == Book.id, isouter=True)
-            .group_by(Book.id, Book.title, Book.author)
+            .group_by(Book.id, Book.title, Book.author, Book.cover_url)
             .order_by(func.avg(BookChapter.word_count).asc().nulls_last())
         )
         rows = (await self.db.execute(stmt)).all()
-        return [BookDifficultyRow(r[0], r[1], r[2], r[3]) for r in rows]
+        return [BookDifficultyRow(r[0], r[1], r[2], r[4], r[3]) for r in rows]

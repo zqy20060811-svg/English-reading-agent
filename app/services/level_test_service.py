@@ -175,6 +175,7 @@ class LevelTestService:
                 book_id=b.book_id,
                 title=b.title,
                 author=b.author,
+                cover_url=b.cover_url,
                 avg_chapter_words=b.avg_chapter_words,
             )
             for b in picked
