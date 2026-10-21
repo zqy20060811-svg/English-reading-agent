@@ -175,17 +175,15 @@
         </div>
       </div>
 
-      <!-- 书架 -->
-      <div class="mt-6">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-bold">书架</h3>
-          <span class="text-sm text-muted" id="shelf-count"></span>
+      <!-- 书架入口（完整书架已独立为 shelf.html） -->
+      <div class="mt-6 flex items-center justify-between bg-white rounded-2xl shadow-soft px-6 py-4">
+        <div>
+          <h3 class="text-lg font-bold">我的书架</h3>
+          <p class="text-sm text-muted mt-1">全部书籍已移至独立书架页，支持分类与难度筛选</p>
         </div>
-        <!-- 分类与难度筛选（客户端过滤，标签由书库动态生成） -->
-        <div id="shelf-filters" class="mb-5 space-y-2"></div>
-        <div id="book-grid" class="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
-          <div class="col-span-full text-center text-muted py-12"><i class="fa fa-circle-o-notch fa-spin mr-2"></i>书架加载中...</div>
-        </div>
+        <a href="shelf.html" class="px-5 py-2.5 rounded-xl bg-brand-600 text-white font-semibold hover:bg-brand-700 transition">
+          前往书架 <i class="fa fa-angle-right ml-1"></i>
+        </a>
       </div>
     </section>
 
@@ -562,10 +560,7 @@
   }
 
   // ================= 首页 =================
-  // 书架筛选状态（分类标签 + 难度等级，均客户端过滤）
-  let SHELF_FILTER = { genre: '全部', level: '全部' };
-
-  // 按全书词数粗略分档（与推荐难度上限同源的近似口径）
+  // 按全书词数粗略分档（书架页 shelf.html 使用同一口径）
   function levelOf(wordCount) {
     if (!wordCount) return 'A1';
     if (wordCount < 8000) return 'A1';
@@ -573,55 +568,6 @@
     if (wordCount < 45000) return 'B1';
     if (wordCount < 80000) return 'B2';
     return 'C1';
-  }
-
-  function chipRow(label, options, key) {
-    const chips = options.map(o => `
-      <button onclick="setShelfFilter('${key}', '${String(o).replace(/'/g, "\\'")}')"
-        class="px-3 py-1 rounded-full text-xs border transition ${SHELF_FILTER[key] === o
-          ? 'bg-brand-500 text-white border-brand-500'
-          : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400'}">${o}</button>`).join('');
-    return `<div class="flex items-center gap-2 flex-wrap"><span class="text-xs text-muted w-10">${label}</span>${chips}</div>`;
-  }
-
-  function renderShelfFilters() {
-    const genres = [...new Set(ALL_BOOKS.map(b => b.genre).filter(Boolean))].sort();
-    const levels = [...new Set(ALL_BOOKS.map(b => levelOf(b.word_count)))].sort();
-    document.getElementById('shelf-filters').innerHTML =
-      chipRow('分类', ['全部', ...genres], 'genre') + chipRow('难度', ['全部', ...levels], 'level');
-  }
-
-  function renderShelf() {
-    const list = ALL_BOOKS.filter(b =>
-      (SHELF_FILTER.genre === '全部' || (b.genre || 'Classic') === SHELF_FILTER.genre) &&
-      (SHELF_FILTER.level === '全部' || levelOf(b.word_count) === SHELF_FILTER.level));
-    document.getElementById('shelf-count').textContent = `共 ${list.length} 本`;
-    const grid = document.getElementById('book-grid');
-    if (!list.length) {
-      grid.innerHTML = '<div class="col-span-full text-center text-muted py-12">该筛选条件下暂无书籍</div>';
-      return;
-    }
-    grid.innerHTML = list.map(b => `
-      <div class="bg-white rounded-2xl shadow-soft overflow-hidden hover:shadow-card transition cursor-pointer group"
-           onclick="openBook(${b.id})">
-        ${coverHtml(b)}
-        <div class="p-4">
-          <p class="text-sm text-muted line-clamp-2 h-10">${b.synopsis || '暂无简介'}</p>
-          <div class="flex items-center justify-between mt-3">
-            <span class="text-xs text-muted">${b.word_count ? (b.word_count / 10000).toFixed(1) + ' 万词' : ''}</span>
-            <span class="flex items-center gap-1">
-              <span class="text-xs bg-emerald-50 text-emerald-600 px-2 py-1 rounded-lg">${levelOf(b.word_count)}</span>
-              <span class="text-xs bg-brand-50 text-brand-600 px-2 py-1 rounded-lg">${b.genre || 'Classic'}</span>
-            </span>
-          </div>
-        </div>
-      </div>`).join('');
-  }
-
-  function setShelfFilter(key, value) {
-    SHELF_FILTER[key] = value;
-    renderShelfFilters();
-    renderShelf();
   }
 
   async function initHome() {
@@ -633,9 +579,6 @@
 
     const last = JSON.parse(localStorage.getItem(LAST_BOOK_KEY) || 'null');
     document.getElementById('stat-reading').textContent = last ? '进行中' : '未开始';
-
-    renderShelfFilters();
-    renderShelf();
     // 继续阅读卡片（localStorage 记录上次书目）
     if (last && books.some(b => b.id === last.book_id)) {
       const book = books.find(b => b.id === last.book_id);

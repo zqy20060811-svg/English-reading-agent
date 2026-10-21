@@ -352,7 +352,7 @@
       }, 'login-btn', '登录，继续阅读');
       localStorage.setItem(TOKEN_KEY, token.access_token);
       localStorage.setItem(USER_KEY, document.getElementById('login-username').value.trim());
-      showWelcome(document.getElementById('login-username').value.trim());
+      location.href = nextPath();
     } catch (err) {
       showAlert('error', '登录失败：' + (err.message === 'Failed to fetch'
         ? '无法连接后端服务，请确认服务已启动（http://127.0.0.1:8002）'
@@ -377,11 +377,17 @@
     switchAuth('login');
   }
 
-  // 已登录用户直接展示欢迎页
+  // 登录后的落地页：优先 ?next= 回跳来源页（如书架页），默认学习中心
+  function nextPath() {
+    const next = new URLSearchParams(location.search).get('next');
+    return next && next.startsWith('.html') ? next : 'home.html';
+  }
+
+  // 已登录用户直接进入学习中心（带 next 时回跳目标页）
   (function init() {
     const token = localStorage.getItem(TOKEN_KEY);
     const username = localStorage.getItem(USER_KEY);
-    if (token && username) showWelcome(username);
+    if (token && username) location.href = nextPath();
   })();
 </script>
 

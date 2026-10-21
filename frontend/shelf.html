@@ -49,14 +49,8 @@
         </div>
       </div>
 
-      <!-- 登录提示横幅（未登录时显示） -->
-      <div id="login-banner" class="hidden bg-white rounded-2xl px-5 py-4 flex items-center gap-3 shadow-sm mb-4">
-        <i class="fa fa-user-circle-o text-brand-500 text-xl"></i>
-        <span class="text-sm text-gray-700 flex-1">登录即可永久保存书架和浏览历史</span>
-        <a href="index.html" class="text-brand-500 text-sm font-bold">去登录 <i class="fa fa-angle-right"></i></a>
-      </div>
       <!-- 已登录欢迎条 -->
-      <div id="user-banner" class="hidden bg-white rounded-2xl px-5 py-4 flex items-center gap-3 shadow-sm mb-4">
+      <div id="user-banner" class="bg-white rounded-2xl px-5 py-4 flex items-center gap-3 shadow-sm mb-4">
         <i class="fa fa-user-circle-o text-brand-500 text-xl"></i>
         <span class="text-sm text-gray-700 flex-1">欢迎回来，<b id="banner-user"></b>，你的书架和阅读进度已云端保存</span>
       </div>
@@ -215,15 +209,13 @@
   function shuffle(arr) { return arr.map(v => [Math.random(), v]).sort((a, b) => a[0] - b[0]).map(([, v]) => v); }
 
   async function init() {
-    // 登录态：未登录显示登录横幅并跳登录页
-    if (!getToken()) { document.getElementById('login-banner').classList.remove('hidden'); }
-    else {
-      document.getElementById('user-banner').classList.remove('hidden');
-      try {
-        const me = await api('/me');
-        document.getElementById('banner-user').textContent = me.username;
-      } catch { localStorage.removeItem(TOKEN_KEY); location.href = 'index.html'; return; }
-    }
+    // 登录态：书架数据全部需要 token，未登录直接跳登录页（登录后回跳本书架页）
+    if (!getToken()) { location.href = 'index.html?next=' + encodeURIComponent('shelf.html'); return; }
+    document.getElementById('user-banner').classList.remove('hidden');
+    try {
+      const me = await api('/me');
+      document.getElementById('banner-user').textContent = me.username;
+    } catch { localStorage.removeItem(TOKEN_KEY); location.href = 'index.html?next=' + encodeURIComponent('shelf.html'); return; }
 
     try {
       ALL_BOOKS = await api('/books');
