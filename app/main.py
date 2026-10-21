@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.api.routes.ask import router as ask_router
@@ -40,6 +41,15 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="English Reading Agent", lifespan=lifespan)
+
+# 允许本地前端（任意端口）跨域访问；前端正式部署后再收紧来源
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(auth_router)
 app.include_router(book_router)
