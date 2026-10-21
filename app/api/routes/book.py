@@ -12,6 +12,15 @@ router = APIRouter(
 )
 
 
+@router.get("", response_model=list[BookOut])
+async def list_books(
+    limit: int = Query(default=200, ge=1, le=500, description="返回数量上限"),
+    service: BookService = Depends(get_book_service),
+):
+    """全部书籍列表（按入库顺序，含简介），供前端书架使用"""
+    return await service.list_all(limit)
+
+
 @router.get("/search", response_model=list[BookOut])
 async def search_books(
     title: str = Query(min_length=1, max_length=255, description="书名关键词"),

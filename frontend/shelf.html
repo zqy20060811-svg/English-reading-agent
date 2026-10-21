@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>书架 · English Reading Agent</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: { brand: { 50: '#fff3ec', 100: '#ffe1cc', 500: '#ff7a1a', 600: '#f25c05' } },
+        fontFamily: { sans: ['Inter', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'sans-serif'] },
+        boxShadow: { card: '0 8px 24px rgba(255,122,26,.12)' } } }
+    }
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <style> .line-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden} </style>
+</head>
+<body class="bg-gray-50 min-h-screen pb-20">
+
+  <!-- ========== 顶部标签栏 ========== -->
+  <header class="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-gray-100">
+    <div class="max-w-7xl mx-auto px-5 h-14 flex items-center gap-8">
+      <div id="top-tabs" class="flex items-center gap-6 text-lg">
+        <button data-tab="shelf"  onclick="switchTab('shelf')"  class="tab-btn font-bold text-gray-900 border-b-2 border-brand-500 h-14">书架</button>
+        <button data-tab="history" onclick="switchTab('history')" class="tab-btn font-bold text-gray-400 h-14 border-b-2 border-transparent">历史</button>
+        <button data-tab="fav"    onclick="switchTab('fav')"    class="tab-btn font-bold text-gray-400 h-14 border-b-2 border-transparent">收藏</button>
+      </div>
+      <div class="ml-auto flex items-center gap-5 text-gray-500">
+        <i class="fa fa-search cursor-pointer hover:text-brand-500"></i>
+        <i class="fa fa-ellipsis-v cursor-pointer hover:text-brand-500"></i>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-5">
+
+    <!-- ========== 书架 Tab ========== -->
+    <section id="tab-shelf">
+      <!-- 阅读打卡横条 -->
+      <div class="flex items-center justify-between py-4">
+        <button class="flex items-center gap-2 bg-brand-50 text-brand-600 text-sm px-3.5 py-1.5 rounded-full" onclick="go('read')">
+          <span class="w-4 h-4 rounded-full bg-brand-500 text-white text-[10px] flex items-center justify-center"><i class="fa fa-book"></i></span>
+          今日阅读 <span id="today-min">0</span> 分钟
+          <i class="fa fa-angle-right"></i>
+        </button>
+        <div class="flex items-center gap-5 text-sm text-gray-500">
+          <button onclick="toggleFilter()" class="hover:text-brand-500"><i class="fa fa-filter mr-1"></i>筛选</button>
+          <button onclick="go('home')" class="hover:text-brand-500">学习中心</button>
+        </div>
+      </div>
+
+      <!-- 登录提示横幅（未登录时显示） -->
+      <div id="login-banner" class="hidden bg-white rounded-2xl px-5 py-4 flex items-center gap-3 shadow-sm mb-4">
+        <i class="fa fa-user-circle-o text-brand-500 text-xl"></i>
+        <span class="text-sm text-gray-700 flex-1">登录即可永久保存书架和浏览历史</span>
+        <a href="index.html" class="text-brand-500 text-sm font-bold">去登录 <i class="fa fa-angle-right"></i></a>
+      </div>
+      <!-- 已登录欢迎条 -->
+      <div id="user-banner" class="hidden bg-white rounded-2xl px-5 py-4 flex items-center gap-3 shadow-sm mb-4">
+        <i class="fa fa-user-circle-o text-brand-500 text-xl"></i>
+        <span class="text-sm text-gray-700 flex-1">欢迎回来，<b id="banner-user"></b>，你的书架和阅读进度已云端保存</span>
+      </div>
+
+      <!-- 筛选面板（分类 + 难度） -->
+      <div id="filter-panel" class="hidden bg-white rounded-2xl p-4 shadow-sm mb-4 space-y-2"></div>
+
+      <!-- 书籍网格 -->
+      <div id="shelf-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4"></div>
+
+      <!-- 空状态 -->
+      <div id="shelf-empty" class="hidden text-center py-16">
+        <p class="text-gray-400 mb-6">书架暂无书籍</p>
+        <div class="flex items-center justify-center gap-4">
+          <button onclick="toggleFilter()" class="px-6 py-2.5 rounded-full bg-gray-100 text-gray-600 text-sm">调整筛选</button>
+          <button onclick="go('read')" class="px-6 py-2.5 rounded-full bg-brand-500 text-white text-sm shadow-card">去阅读选书</button>
+        </div>
+      </div>
+
+      <!-- 为你推荐 -->
+      <div class="mt-10 mb-2 flex items-center gap-4">
+        <span class="h-px bg-gray-200 flex-1"></span>
+        <span class="text-sm text-gray-400">为你推荐</span>
+        <span class="h-px bg-gray-200 flex-1"></span>
+      </div>
+      <div id="rec-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-10"></div>
+    </section>
+
+    <!-- ========== 历史 / 收藏 占位 ========== -->
+    <section id="tab-history" class="hidden text-center py-24 text-gray-400">
+      <i class="fa fa-history text-4xl mb-4 block"></i>阅读历史功能开发中
+    </section>
+    <section id="tab-fav" class="hidden text-center py-24 text-gray-400">
+      <i class="fa fa-star-o text-4xl mb-4 block"></i>收藏功能开发中
+    </section>
+  </main>
+
+  <!-- ========== 底部导航 ========== -->
+  <nav class="fixed bottom-0 inset-x-0 bg-white border-t border-gray-100 z-20">
+    <div class="max-w-7xl mx-auto grid grid-cols-5 h-14 text-xs text-gray-400">
+      <button onclick="switchTab('shelf')" class="flex flex-col items-center justify-center gap-0.5 text-brand-500"><i class="fa fa-book text-base"></i>书架</button>
+      <button onclick="go('home')" class="flex flex-col items-center justify-center gap-0.5"><i class="fa fa-home text-base"></i>学习中心</button>
+      <button onclick="go('read')" class="flex flex-col items-center justify-center gap-0.5"><i class="fa fa-pencil text-base"></i>阅读</button>
+      <button onclick="go('translate')" class="flex flex-col items-center justify-center gap-0.5"><i class="fa fa-language text-base"></i>翻译</button>
+      <button onclick="go('test')" class="flex flex-col items-center justify-center gap-0.5"><i class="fa fa-line-chart text-base"></i>测试</button>
+    </div>
+  </nav>
+
+  <div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-24 bg-gray-900/85 text-white text-sm px-4 py-2 rounded-full hidden z-50"></div>
+
+<script>
+  const TOKEN_KEY = 'era_token';
+  const toast = (msg) => {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.remove('hidden');
+    clearTimeout(t._h); t._h = setTimeout(() => t.classList.add('hidden'), 2200);
+  };
+  const go = (page) => {
+    const map = { home: 'home.html', read: 'home.html#read', translate: 'home.html#translate', test: 'home.html#test' };
+    location.href = map[page] || 'home.html';
+  };
+
+  function getToken() { return localStorage.getItem(TOKEN_KEY); }
+
+  async function api(path, opts = {}) {
+    const res = await fetch('http://127.0.0.1:8002' + path, {
+      ...opts,
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (getToken() || ''), ...(opts.headers || {}) },
+    });
+    if (res.status === 401 || res.status === 403) throw new Error('UNAUTHORIZED');
+    if (!res.ok) {
+      let detail = '请求失败';
+      try { detail = (await res.json()).detail || detail; } catch {}
+      throw new Error(detail);
+    }
+    return res.json();
+  }
+
+  // ================= Tab 切换 =================
+  function switchTab(name) {
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      const active = b.dataset.tab === name;
+      b.classList.toggle('text-gray-900', active);
+      b.classList.toggle('border-brand-500', active);
+      b.classList.toggle('text-gray-400', !active);
+      b.classList.toggle('border-transparent', !active);
+    });
+    ['shelf', 'history', 'fav'].forEach(t =>
+      document.getElementById('tab-' + t).classList.toggle('hidden', t !== name));
+  }
+
+  // ================= 封面与等级 =================
+  function levelOf(wordCount) {
+    if (!wordCount) return 'A1';
+    if (wordCount < 8000) return 'A1';
+    if (wordCount < 20000) return 'A2';
+    if (wordCount < 45000) return 'B1';
+    if (wordCount < 80000) return 'B2';
+    return 'C1';
+  }
+
+  function bookCard(b) {
+    return `
+      <div onclick="openBook(${b.id})" class="bg-white rounded-2xl shadow-sm hover:shadow-card transition cursor-pointer overflow-hidden">
+        <div class="relative aspect-[3/4] bg-gray-100">
+          ${b.cover_url
+            ? `<img src="${b.cover_url}" alt="${b.title}" loading="lazy" class="w-full h-full object-cover"
+                   onerror="this.remove()">`
+            : `<div class="w-full h-full bg-gradient-to-br from-orange-200 to-rose-200 flex items-end p-3">
+                 <span class="text-white font-bold text-sm leading-tight">${b.title}</span></div>`}
+          <span class="absolute top-2 left-2 text-[10px] bg-black/55 text-white px-1.5 py-0.5 rounded">${levelOf(b.word_count)}</span>
+        </div>
+        <div class="p-2.5">
+          <p class="text-sm font-medium text-gray-800 truncate">${b.title}</p>
+          <p class="text-xs text-gray-400 truncate">${b.author}</p>
+        </div>
+      </div>`;
+  }
+
+  function openBook(id) { location.href = 'home.html#book=' + id; }
+
+  // ================= 筛选 =================
+  let ALL_BOOKS = [], SHELF_FILTER = { genre: '全部', level: '全部' }, FILTER_OPEN = false;
+
+  function toggleFilter() {
+    FILTER_OPEN = !FILTER_OPEN;
+    document.getElementById('filter-panel').classList.toggle('hidden', !FILTER_OPEN);
+  }
+
+  function chipRow(label, options, key) {
+    const chips = options.map(o => `
+      <button onclick="setFilter('${key}', '${String(o).replace(/'/g, "\\'")}')"
+        class="px-3 py-1 rounded-full text-xs border transition ${SHELF_FILTER[key] === o
+          ? 'bg-brand-500 text-white border-brand-500' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400'}">${o}</button>`).join('');
+    return `<div class="flex items-center gap-2 flex-wrap"><span class="text-xs text-gray-400 w-10">${label}</span>${chips}</div>`;
+  }
+
+  function renderFilters() {
+    const genres = [...new Set(ALL_BOOKS.map(b => b.genre).filter(Boolean))].sort();
+    const levels = [...new Set(ALL_BOOKS.map(b => levelOf(b.word_count)))].sort();
+    document.getElementById('filter-panel').innerHTML =
+      chipRow('分类', ['全部', ...genres], 'genre') + chipRow('难度', ['全部', ...levels], 'level');
+  }
+
+  function setFilter(key, value) { SHELF_FILTER[key] = value; renderFilters(); renderShelf(); }
+
+  function renderShelf() {
+    const list = ALL_BOOKS.filter(b =>
+      (SHELF_FILTER.genre === '全部' || (b.genre || 'Classic') === SHELF_FILTER.genre) &&
+      (SHELF_FILTER.level === '全部' || levelOf(b.word_count) === SHELF_FILTER.level));
+    document.getElementById('shelf-grid').innerHTML = list.map(bookCard).join('');
+    document.getElementById('shelf-empty').classList.toggle('hidden', list.length > 0);
+  }
+
+  // ================= 初始化 =================
+  function shuffle(arr) { return arr.map(v => [Math.random(), v]).sort((a, b) => a[0] - b[0]).map(([, v]) => v); }
+
+  async function init() {
+    // 登录态：未登录显示登录横幅并跳登录页
+    if (!getToken()) { document.getElementById('login-banner').classList.remove('hidden'); }
+    else {
+      document.getElementById('user-banner').classList.remove('hidden');
+      try {
+        const me = await api('/me');
+        document.getElementById('banner-user').textContent = me.username;
+      } catch { localStorage.removeItem(TOKEN_KEY); location.href = 'index.html'; return; }
+    }
+
+    try {
+      ALL_BOOKS = await api('/books');
+    } catch (e) {
+      if (e.message === 'UNAUTHORIZED') { location.href = 'index.html'; return; }
+      toast('书架加载失败：' + e.message);
+      return;
+    }
+    renderFilters();
+    renderShelf();
+
+    // 为你推荐：优先取水平测试的推荐书单，否则从低难度书里随机挑 12 本
+    let recs = [];
+    try {
+      const r = await api('/level-test/result');
+      recs = (r.recommendations || []).map(b => ({ ...b, word_count: Math.round(b.avg_chapter_words * 12), cover_url: b.cover_url }));
+    } catch { /* 未测试则随机推荐 */ }
+    if (recs.length < 6) {
+      const pool = shuffle(ALL_BOOKS.filter(b => ['A1', 'A2'].includes(levelOf(b.word_count))));
+      const picked = pool.filter(p => !recs.some(r => r.book_id === p.id)).slice(0, 12 - recs.length);
+      recs = [...recs, ...picked.map(b => ({ book_id: b.id, ...b }))];
+    }
+    document.getElementById('rec-grid').innerHTML = recs.slice(0, 12).map(b =>
+      `<div onclick="openBook(${b.book_id})" class="bg-white rounded-2xl shadow-sm hover:shadow-card transition cursor-pointer overflow-hidden">
+        <div class="relative aspect-[3/4] bg-gray-100">
+          ${b.cover_url
+            ? `<img src="${b.cover_url}" loading="lazy" class="w-full h-full object-cover" onerror="this.remove()">`
+            : `<div class="w-full h-full bg-gradient-to-br from-amber-200 to-orange-300 flex items-end p-3">
+                 <span class="text-white font-bold text-sm leading-tight">${b.title}</span></div>`}
+          <span class="absolute top-2 right-2 text-[10px] bg-brand-500 text-white px-1.5 py-0.5 rounded">推荐</span>
+        </div>
+        <div class="p-2.5">
+          <p class="text-sm font-medium text-gray-800 truncate">${b.title}</p>
+          <p class="text-xs text-gray-400 truncate">${b.author || ''}</p>
+        </div>
+      </div>`).join('');
+  }
+
+  init();
+</script>
+</body>
+</html>
