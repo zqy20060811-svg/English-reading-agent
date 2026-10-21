@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
@@ -442,6 +442,8 @@
 
 <script>
   // ================= 基础工具 =================
+  // 统一站点域名：localStorage 按域名隔离，强制 localhost 并到 127.0.0.1，避免双份登录态
+  if (location.hostname === 'localhost') location.replace('http://127.0.0.1:8080' + location.pathname + location.search);
   const API_BASE = 'http://127.0.0.1:8002';
   const TOKEN_KEY = 'era_access_token';
   const USER_KEY = 'era_username';
@@ -1064,5 +1066,7 @@
   });
 </script>
 
+
+  <div class='build-badge' style='position:fixed;right:8px;bottom:8px;z-index:9999;font-size:10px;color:#aaa;pointer-events:none'>build 1022-v3</div>
 </body>
 </html>
