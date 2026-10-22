@@ -19,6 +19,11 @@ class BookRepository:
         )
         return result.scalar_one_or_none()
 
+    async def list_all(self, limit: int = 100) -> list[Book]:
+        """全部书籍列表（按入库顺序），供前端书架使用"""
+        result = await self.db.execute(select(Book).order_by(Book.id).limit(limit))
+        return list(result.scalars().all())
+
     async def search_by_title(self, title: str) -> list[Book]:
         """按书名模糊查询（大小写不敏感），完全匹配的排在最前。"""
         pattern = f"%{title}%"

@@ -45,6 +45,24 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
+  /* 无封面书的树皮纹理占位（书名/作者展示） */
+  .cover-fallback {
+    background:
+      repeating-linear-gradient(95deg, rgba(0,0,0,.10) 0 2px, rgba(0,0,0,0) 2px 5px, rgba(255,255,255,.05) 5px 6px, rgba(0,0,0,0) 6px 11px),
+      repeating-linear-gradient(88deg, rgba(0,0,0,.06) 0 8px, rgba(0,0,0,0) 8px 16px),
+      linear-gradient(165deg, #8a5a33 0%, #6b4226 45%, #4a2c17 100%);
+    color: #f3e2c7;
+    box-shadow: inset 0 0 32px rgba(0, 0, 0, .38);
+    border: 1px solid rgba(255, 255, 255, .10);
+  }
+  .cover-fallback-title {
+    font-family: Georgia, 'Times New Roman', 'Songti SC', serif;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
   /* 章节正文排版 */
   .prose-book p {
     text-indent: 2em;
@@ -52,41 +70,63 @@
     line-height: 1.9;
   }
   .prose-book p:first-child { margin-top: 0; }
+
+  /* ===== 侧边栏收起 ===== */
+  .sidebar-aside { transition: width .25s ease, transform .25s ease; }
+  .main-shift { transition: margin-left .25s ease; }
+  .sidebar-aside.collapsed { width: 5rem; }
+  .sidebar-aside.collapsed .brand-title { display: none; }
+  .sidebar-aside.collapsed .nav-label,
+  .sidebar-aside.collapsed .side-hide { display: none; }
+  .sidebar-aside.collapsed .nav-item { justify-content: center; }
+  .sidebar-aside.collapsed .side-mini { display: block; }
+  .main-shift.collapsed-main { margin-left: 5rem; }
+
+  /* ===== 分页阅读器（固定阅读框） ===== */
+  .reader-shell { height: calc(100vh - 285px); min-height: 540px; }
+  .book-pages { overflow: hidden; }
+  .book-pages .page-inner { height: 100%; } /* 固定高度后内容才会横向溢出成多列 */
+  .page-inner { transition: transform .25s ease; }
 </style>
 </head>
 <body class="min-h-screen">
 
 <div id="main-app" class="min-h-screen flex">
 
-  <!-- ================= 侧边栏 ================= -->
-  <aside class="w-64 bg-white shadow-soft flex flex-col fixed inset-y-0 left-0 z-30">
+  <!-- ================= 侧边栏（可收起） ================= -->
+  <aside id="sidebar-aside" class="sidebar-aside w-64 bg-white shadow-soft flex flex-col fixed inset-y-0 left-0 z-30">
+    <button onclick="toggleSidebar()" title="收起 / 展开菜单"
+            class="absolute -right-3 top-20 w-6 h-6 rounded-full bg-white shadow-card border border-gray-100 text-muted hover:text-brand-600 items-center justify-center text-xs z-40 flex">
+      <i id="sidebar-toggle-icon" class="fa fa-angle-left"></i>
+    </button>
+
     <div class="p-6 flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-400 flex items-center justify-center text-white shadow-glow">
+      <div class="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-br from-brand-500 to-brand-400 flex items-center justify-center text-white shadow-glow">
         <i class="fa fa-book"></i>
       </div>
-      <span class="font-bold text-lg">English Reading</span>
+      <span class="brand-title font-bold text-lg">English Reading</span>
     </div>
 
     <nav class="flex-1 px-4 space-y-1">
-      <div class="nav-item active flex items-center gap-3 px-4 py-3 rounded-xl bg-brand-50 text-brand-700 font-semibold cursor-pointer transition" data-page="home" onclick="switchPage('home')">
-        <i class="fa fa-home w-5"></i><span>学习中心</span>
+      <div class="nav-item active flex items-center gap-3 px-4 py-3 rounded-xl bg-brand-50 text-brand-700 font-semibold cursor-pointer transition" data-page="home" onclick="switchPage('home')" title="学习中心">
+        <i class="fa fa-home w-5 text-center"></i><span class="nav-label">学习中心</span>
       </div>
-      <div class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-muted hover:bg-gray-50 cursor-pointer transition" data-page="read" onclick="switchPage('read')">
-        <i class="fa fa-book w-5"></i><span>阅读</span>
+      <div class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-muted hover:bg-gray-50 cursor-pointer transition" onclick="location.href='shelf.html'" title="书架">
+        <i class="fa fa-th-large w-5 text-center"></i><span class="nav-label">书架</span>
       </div>
-      <div class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-muted hover:bg-gray-50 cursor-pointer transition" data-page="test" onclick="switchPage('test')">
-        <i class="fa fa-pencil-square w-5"></i><span>水平测试</span>
+      <div class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-muted hover:bg-gray-50 cursor-pointer transition" data-page="read" onclick="switchPage('read')" title="阅读">
+        <i class="fa fa-book w-5 text-center"></i><span class="nav-label">阅读</span>
       </div>
-      <div class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-muted hover:bg-gray-50 cursor-pointer transition" data-page="translate" onclick="switchPage('translate')">
-        <i class="fa fa-language w-5"></i><span>翻译</span>
+      <div class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-muted hover:bg-gray-50 cursor-pointer transition" data-page="test" onclick="switchPage('test')" title="水平测试">
+        <i class="fa fa-pencil-square w-5 text-center"></i><span class="nav-label">水平测试</span>
       </div>
-      <a href="shelf.html" class="flex items-center gap-3 px-4 py-3 rounded-xl text-muted hover:bg-gray-50 cursor-pointer transition">
-        <i class="fa fa-book w-5 text-center"></i><span>书架</span>
-      </a>
+      <div class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl text-muted hover:bg-gray-50 cursor-pointer transition" data-page="translate" onclick="switchPage('translate')" title="翻译">
+        <i class="fa fa-language w-5 text-center"></i><span class="nav-label">翻译</span>
+      </div>
     </nav>
 
-    <div class="p-4">
-      <div id="side-user" class="rounded-2xl bg-gradient-to-br from-brand-500 to-brand-400 p-5 text-white shadow-glow">
+    <div class="p-4 side-hide">
+      <div class="rounded-2xl bg-gradient-to-br from-brand-500 to-brand-400 p-5 text-white shadow-glow">
         <div class="text-sm opacity-90">当前用户</div>
         <div id="side-username" class="text-xl font-bold mt-1">—</div>
         <div id="side-level" class="text-xs mt-3 opacity-90">等级：未测试</div>
@@ -95,10 +135,19 @@
         </button>
       </div>
     </div>
+
+    <!-- 收起态：迷你头像 + 退出 -->
+    <div class="side-mini hidden p-4 pt-2">
+      <div class="w-10 h-10 mx-auto rounded-full bg-gradient-to-br from-brand-500 to-brand-400 text-white flex items-center justify-center font-bold" id="side-mini-avatar">R</div>
+      <button onclick="doLogout()" title="退出登录"
+              class="mt-3 w-10 h-10 mx-auto rounded-full bg-brand-50 text-brand-600 hover:bg-brand-100 flex items-center justify-center transition">
+        <i class="fa fa-sign-out"></i>
+      </button>
+    </div>
   </aside>
 
   <!-- ================= 主内容 ================= -->
-  <main class="flex-1 ml-64">
+  <main id="main-shift" class="main-shift flex-1 ml-64">
 
     <!-- 顶部栏 -->
     <header class="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-8 py-4">
@@ -175,15 +224,18 @@
         </div>
       </div>
 
-      <!-- 书架入口（完整书架已独立为 shelf.html） -->
-      <div class="mt-6 flex items-center justify-between bg-white rounded-2xl shadow-soft px-6 py-4">
-        <div>
-          <h3 class="text-lg font-bold">我的书架</h3>
-          <p class="text-sm text-muted mt-1">全部书籍已移至独立书架页，支持分类与难度筛选</p>
+      <!-- 书架入口（完整书架已抽离至 shelf.html） -->
+      <div class="mt-6">
+        <div class="bg-white rounded-2xl shadow-soft p-6 flex items-center gap-5 hover:shadow-card transition cursor-pointer" onclick="location.href='shelf.html'">
+          <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-400 flex items-center justify-center text-white text-2xl shadow-glow shrink-0">
+            <i class="fa fa-th-large"></i>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-lg font-bold">书架</h3>
+            <p class="text-sm text-muted mt-1">共 <span id="shelf-entry-count">...</span> 本书，支持按分类、难度筛选与搜索，点击进入书架挑选今天的读物。</p>
+          </div>
+          <i class="fa fa-angle-right text-2xl text-gray-300 mr-2"></i>
         </div>
-        <a href="shelf.html" class="px-5 py-2.5 rounded-xl bg-brand-600 text-white font-semibold hover:bg-brand-700 transition">
-          前往书架 <i class="fa fa-angle-right ml-1"></i>
-        </a>
       </div>
     </section>
 
@@ -191,7 +243,7 @@
     <section id="content-read" class="hidden p-8 fade-in">
       <div class="max-w-7xl mx-auto">
 
-        <div class="flex flex-wrap items-center gap-3 mb-6">
+        <div class="flex flex-wrap items-center gap-3 mb-5">
           <select id="book-select" onchange="onBookChange()" class="px-4 py-2.5 rounded-xl bg-white border border-gray-200 focus:border-brand-500 outline-none text-sm max-w-xs">
             <option value="">选择一本书...</option>
           </select>
@@ -206,76 +258,96 @@
           </div>
         </div>
 
-        <div class="grid lg:grid-cols-[1fr_360px] gap-6">
+        <!-- 章节目录（单行横向滚动，节省纵向空间） -->
+        <div class="bg-white rounded-2xl shadow-soft px-4 py-3 mb-5 flex items-center gap-3">
+          <span class="text-sm font-semibold text-muted shrink-0"><i class="fa fa-list mr-1"></i>章节</span>
+          <div id="chapter-list" class="flex flex-nowrap gap-2 overflow-x-auto pb-1">
+            <span class="text-muted text-sm">请先选择一本书</span>
+          </div>
+        </div>
 
-          <!-- 左：章节正文 -->
-          <div>
-            <!-- 章节目录 -->
-            <div class="bg-white rounded-2xl shadow-soft p-4 mb-5">
-              <div class="text-sm font-semibold mb-3 text-muted"><i class="fa fa-list mr-2"></i>章节目录</div>
-              <div id="chapter-list" class="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                <span class="text-muted text-sm">请先选择一本书</span>
-              </div>
-            </div>
-
-            <div class="bg-white rounded-2xl shadow-soft p-8">
-              <div id="read-loading" class="text-center text-muted py-16"><i class="fa fa-circle-o-notch fa-spin mr-2"></i>加载中...</div>
-              <div id="read-empty" class="text-center text-muted py-16">
-                <i class="fa fa-book text-4xl opacity-40"></i>
-                <p class="mt-4">从上方选择一本书，开始阅读</p>
-              </div>
-              <div id="read-content" class="hidden">
-                <div class="flex items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <div class="text-sm text-muted" id="read-chapter-no"></div>
-                    <h1 id="read-chapter-title" class="text-3xl font-extrabold mt-1"></h1>
-                  </div>
-                  <span id="read-chapter-words" class="bg-brand-50 text-brand-600 px-3 py-1 rounded-lg text-sm"></span>
-                </div>
-                <div class="prose-book text-lg text-ink mt-6" id="read-body"></div>
-                <div class="mt-8 pt-5 border-t border-gray-100 flex items-center justify-between text-sm text-muted">
-                  <span id="read-progress-text"></span>
-                  <span>阅读进度自动保存</span>
-                </div>
-              </div>
-            </div>
+        <!-- 固定高度分页阅读器 -->
+        <div class="bg-white rounded-2xl shadow-soft flex flex-col reader-shell overflow-hidden">
+          <div id="read-loading" class="flex-1 flex items-center justify-center text-muted"><i class="fa fa-circle-o-notch fa-spin mr-2"></i>加载中...</div>
+          <div id="read-empty" class="flex-1 flex-col items-center justify-center text-muted">
+            <i class="fa fa-book text-4xl opacity-40"></i>
+            <p class="mt-4">从上方选择一本书，开始阅读</p>
           </div>
 
-          <!-- 右：AI 工具 -->
-          <div class="space-y-5">
-            <!-- 中文对照 -->
-            <div class="bg-white rounded-2xl shadow-soft p-6">
-              <div class="flex items-center justify-between mb-3">
-                <h4 class="font-bold">中文对照</h4>
-                <span class="text-xs text-muted">AI 翻译</span>
+          <div id="read-content" class="hidden flex-1 min-h-0 flex flex-col relative">
+            <div class="flex items-center justify-between flex-wrap gap-2 px-10 pt-6 pb-4 border-b border-gray-50">
+              <div>
+                <div class="text-sm text-muted" id="read-chapter-no"></div>
+                <h1 id="read-chapter-title" class="text-2xl font-extrabold mt-1"></h1>
               </div>
-              <button onclick="translateChapter()" id="translate-btn"
-                      class="w-full py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition disabled:opacity-60">
-                <i class="fa fa-language mr-1"></i>翻译本章（前 4500 字符）
-              </button>
-              <div id="translate-result" class="hidden mt-4 p-4 rounded-xl bg-brand-50 border border-brand-100 text-sm leading-7 text-ink max-h-72 overflow-y-auto"></div>
+              <span id="read-chapter-words" class="bg-brand-50 text-brand-600 px-3 py-1 rounded-lg text-sm"></span>
             </div>
 
-            <!-- AI 问答 -->
-            <div class="bg-white rounded-2xl shadow-soft p-6">
-              <div class="flex items-center justify-between mb-3">
-                <h4 class="font-bold">AI 问答</h4>
-                <span class="text-xs text-muted">基于本章内容（RAG）</span>
+            <div id="book-pages" class="book-pages flex-1 min-h-0 px-10 pt-6 pb-16">
+              <div id="read-body" class="page-inner prose-book text-lg text-ink will-change-transform"></div>
+            </div>
+
+            <!-- 底部悬浮翻页条（覆盖于正文之上，不占阅读空间） -->
+            <div class="absolute inset-x-0 bottom-0 px-10 py-3 flex items-center justify-between text-sm bg-gradient-to-t from-white via-white/90 to-transparent pointer-events-none">
+              <button id="page-prev" onclick="prevPage()" class="pointer-events-auto px-4 py-2 rounded-xl bg-white/95 shadow-soft hover:bg-brand-50 hover:text-brand-700 transition disabled:opacity-40" disabled>
+                <i class="fa fa-arrow-left mr-1"></i>上一页
+              </button>
+              <div class="flex flex-col items-center pointer-events-auto">
+                <span id="page-indicator" class="font-semibold text-ink bg-white/85 px-3 py-1 rounded-lg shadow-soft">第 1 / 1 页</span>
+                <span id="read-progress-text" class="mt-1 text-xs text-muted"></span>
               </div>
-              <div id="qa-history" class="space-y-3 max-h-64 overflow-y-auto mb-3 hidden"></div>
-              <div class="flex gap-2">
-                <input id="qa-input" type="text" placeholder="例如：这一章发生了什么？"
-                       class="flex-1 px-3 py-2.5 rounded-xl bg-gray-50 border border-gray-200 focus:border-brand-500 outline-none text-sm" />
-                <button onclick="askQuestion()" id="qa-btn" class="px-4 py-2.5 rounded-xl bg-mint-600 text-white text-sm font-semibold hover:bg-mint-500 transition disabled:opacity-60">
-                  <i class="fa fa-send"></i>
-                </button>
-              </div>
-              <p class="text-xs text-muted mt-2">先选择书和章节，再提问效果最好</p>
+              <button id="page-next" onclick="nextPage()" class="pointer-events-auto px-4 py-2 rounded-xl bg-brand-600 text-white shadow-soft hover:bg-brand-700 transition disabled:opacity-40" disabled>
+                下一页<i class="fa fa-arrow-right ml-1"></i>
+              </button>
             </div>
           </div>
         </div>
       </div>
     </section>
+
+    <!-- AI 助手抽屉（右侧滑出） -->
+    <div id="ai-drawer" class="fixed inset-y-0 right-0 w-[380px] max-w-[92vw] bg-white shadow-2xl z-40 transform translate-x-full transition-transform duration-300 flex flex-col">
+      <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+        <div class="font-bold">AI 助手 <span class="text-xs text-muted font-normal">基于本章内容（RAG）</span></div>
+        <button onclick="toggleAiDrawer(false)" class="w-8 h-8 rounded-lg hover:bg-gray-100 text-muted transition"><i class="fa fa-close"></i></button>
+      </div>
+
+      <div class="flex border-b border-gray-100 text-sm">
+        <button id="tab-qa" onclick="switchAiTab('qa')" class="flex-1 py-3 font-semibold text-brand-700 border-b-2 border-brand-500 transition">AI 问答</button>
+        <button id="tab-tr" onclick="switchAiTab('tr')" class="flex-1 py-3 text-muted border-b-2 border-transparent hover:text-brand-600 transition">翻译本页</button>
+      </div>
+
+      <!-- 问答面板 -->
+      <div id="ai-panel-qa" class="flex-1 min-h-0 flex flex-col">
+        <div class="flex-1 overflow-y-auto p-5">
+          <div id="qa-history" class="space-y-3 hidden"></div>
+          <p id="qa-hint" class="text-xs text-muted leading-6">先选择书和章节，再提问效果最好。<br>例如：「这一章发生了什么？」「主人公为什么离开？」</p>
+        </div>
+        <div class="p-4 border-t border-gray-100 flex gap-2">
+          <input id="qa-input" type="text" placeholder="就本章内容提问..."
+                 class="flex-1 px-3 py-2.5 rounded-xl bg-gray-50 border border-gray-200 focus:border-brand-500 outline-none text-sm" />
+          <button onclick="askQuestion()" id="qa-btn" class="px-4 rounded-xl bg-mint-600 text-white text-sm font-semibold hover:bg-mint-500 transition disabled:opacity-60">
+            <i class="fa fa-send"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- 翻译面板 -->
+      <div id="ai-panel-tr" class="flex-1 min-h-0 flex flex-col p-5 overflow-y-auto hidden">
+        <button onclick="translateChapter()" id="translate-btn"
+                class="w-full py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition disabled:opacity-60">
+          <i class="fa fa-language mr-1"></i>翻译本页
+        </button>
+        <div id="translate-result" class="hidden mt-4 p-4 rounded-xl bg-brand-50 border border-brand-100 text-sm leading-7 text-ink"></div>
+      </div>
+    </div>
+
+    <!-- AI 悬浮按钮（可拖动，位置记忆） -->
+    <button id="ai-fab" onclick="onFabClick()" title="AI 助手（问答 / 翻译），可拖动"
+            class="fixed right-6 bottom-8 z-30 w-14 h-14 rounded-full bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-glow flex items-center justify-center text-xl hover:scale-105 transition"
+            style="touch-action: none; user-select: none; cursor: grab;">
+      <i class="fa fa-magic"></i>
+    </button>
 
     <!-- ========== 水平测试页 ========== -->
     <section id="content-test" class="hidden p-8 fade-in">
@@ -442,12 +514,11 @@
 
 <script>
   // ================= 基础工具 =================
-  // 统一站点域名：localStorage 按域名隔离，强制 localhost 并到 127.0.0.1，避免双份登录态
-  if (location.hostname === 'localhost') location.replace('http://127.0.0.1:8080' + location.pathname + location.search);
   const API_BASE = 'http://127.0.0.1:8002';
   const TOKEN_KEY = 'era_access_token';
   const USER_KEY = 'era_username';
   const LAST_BOOK_KEY = 'era_last_book';
+  const PENDING_KEY = 'era_pending_book'; // 书架页点击书籍后的交接标记
 
   // 未登录跳回登录页
   if (!localStorage.getItem(TOKEN_KEY)) location.href = 'index.html';
@@ -485,20 +556,15 @@
     el._timer = setTimeout(() => el.classList.add('hidden'), 3000);
   }
 
-  // 封面渐变色（按书籍 id 稳定分配）
-  const COVERS = [
-    'from-brand-400 to-brand-700', 'from-emerald-400 to-emerald-700',
-    'from-amber-400 to-orange-600', 'from-sky-400 to-blue-700',
-    'from-violet-400 to-purple-700', 'from-rose-400 to-pink-700',
-    'from-teal-400 to-cyan-700', 'from-indigo-400 to-indigo-700',
-  ];
-  function coverClass(id) { return COVERS[id % COVERS.length]; }
-
   function coverHtml(book, extra = 'h-44') {
-    // 真实封面（Open Library）；加载失败回退到按书 ID 生成的渐变占位
-    const grad = `<div class="${extra} rounded-2xl bg-gradient-to-br ${coverClass(book.id)} shadow-card flex items-end p-4 text-white">
-      <div><div class="text-xs opacity-80">${book.author} · ${book.year || ''}</div>
-      <div class="font-bold mt-1">${book.title}</div></div></div>`;
+    // 无封面时：棕色树皮纹理占位，展示书名/作者
+    const grad = `<div class="${extra} rounded-2xl shadow-card cover-fallback flex items-center justify-center p-4">
+      <div class="text-center px-1">
+        <div class="text-[10px] uppercase tracking-widest opacity-80">${book.author || ''}</div>
+        <div class="cover-fallback-title mt-2 font-bold text-sm leading-snug">${book.title}</div>
+        <div class="mt-2 mx-auto w-10 h-px bg-current opacity-50"></div>
+      </div>
+    </div>`;
     if (!book.cover_url) return grad;
     return `<div class="${extra} rounded-2xl shadow-card overflow-hidden relative bg-gray-100"
                  data-fallback="${encodeURIComponent(grad)}">
@@ -534,12 +600,158 @@
     document.getElementById('content-' + name).classList.remove('hidden');
     document.getElementById('page-title').innerText = TITLES[name];
     if (name === 'test' && !TEST_PAPER) initTestPage();
+    if (name === 'read') requestAnimationFrame(paginate);
   }
+
+  // ================= 侧边栏收起 =================
+  const SIDEBAR_KEY = 'era_sidebar_collapsed';
+  function toggleSidebar(force) {
+    const aside = document.getElementById('sidebar-aside');
+    const collapsed = force !== undefined ? force : !aside.classList.contains('collapsed');
+    aside.classList.toggle('collapsed', collapsed);
+    document.getElementById('main-shift').classList.toggle('collapsed-main', collapsed);
+    document.getElementById('sidebar-toggle-icon').className = collapsed ? 'fa fa-angle-right' : 'fa fa-angle-left';
+    localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0');
+  }
+  if (localStorage.getItem(SIDEBAR_KEY) === '1') toggleSidebar(true);
+
+  // ================= 分页阅读 =================
+  let PAGE = 0, PAGES = 1;
+  const PAGE_GAP = 64;
+
+  function pageMetrics() {
+    const shell = document.getElementById('book-pages');
+    const cs = getComputedStyle(shell);
+    const w = shell.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const padL = parseFloat(cs.paddingLeft), padR = parseFloat(cs.paddingRight);
+    return { shell, w, padL, padR };
+  }
+
+  function paginate() {
+    if (!CURRENT) return;
+    const { shell, w, padL, padR } = pageMetrics();
+    const inner = document.getElementById('read-body');
+    inner.style.columnWidth = w + 'px';
+    inner.style.columnGap = PAGE_GAP + 'px';
+    inner.style.columnFill = 'auto';
+    PAGE = 0;
+    // 总宽度 = padL + n*w + (n-1)*gap + padR → n = ceil((scrollWidth - pad + gap) / (w + gap))
+    PAGES = Math.max(1, Math.ceil((shell.scrollWidth - padL - padR + PAGE_GAP) / (w + PAGE_GAP)) || 1);
+    updatePageUI();
+  }
+
+  function updatePageUI() {
+    const { w } = pageMetrics();
+    document.getElementById('read-body').style.transform = `translateX(-${PAGE * (w + PAGE_GAP)}px)`;
+    document.getElementById('page-indicator').textContent = `第 ${PAGE + 1} / ${PAGES} 页`;
+    document.getElementById('page-prev').disabled = PAGE <= 0;
+    document.getElementById('page-next').disabled = PAGE >= PAGES - 1 && document.getElementById('next-btn').disabled;
+    // 翻页后旧页译文失效，清空翻译面板
+    const tr = document.getElementById('translate-result');
+    if (tr && !tr.classList.contains('hidden')) tr.classList.add('hidden');
+  }
+
+  function prevPage() { if (PAGE > 0) { PAGE--; updatePageUI(); } }
+
+  function nextPage() {
+    if (PAGE < PAGES - 1) { PAGE++; updatePageUI(); }
+    else if (!document.getElementById('next-btn').disabled) nextChapter(); // 末页顺滑接下一章
+  }
+
+  // 窗口尺寸变化后重新分页（防抖）
+  window.addEventListener('resize', () => {
+    clearTimeout(window._pgTimer);
+    window._pgTimer = setTimeout(paginate, 200);
+  });
+
+  // 键盘 ← → 翻页（输入框聚焦时忽略）
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (document.getElementById('content-read').classList.contains('hidden')) return;
+    if (e.key === 'ArrowLeft') prevPage();
+    if (e.key === 'ArrowRight') nextPage();
+  });
+
+  // ================= AI 助手抽屉 =================
+  function toggleAiDrawer(force) {
+    const drawer = document.getElementById('ai-drawer');
+    const open = force !== undefined ? force : drawer.classList.contains('translate-x-full');
+    drawer.classList.toggle('translate-x-full', !open);
+    document.getElementById('ai-fab').classList.toggle('hidden', open);
+  }
+
+  function switchAiTab(tab) {
+    const isQa = tab === 'qa';
+    document.getElementById('ai-panel-qa').classList.toggle('hidden', !isQa);
+    document.getElementById('ai-panel-tr').classList.toggle('hidden', isQa);
+    const on = 'flex-1 py-3 font-semibold text-brand-700 border-b-2 border-brand-500 transition';
+    const off = 'flex-1 py-3 text-muted border-b-2 border-transparent hover:text-brand-600 transition';
+    document.getElementById('tab-qa').className = isQa ? on : off;
+    document.getElementById('tab-tr').className = isQa ? off : on;
+  }
+
+  // AI 悬浮按钮：可拖动 + 位置记忆；未拖动时视为点击打开抽屉
+  let _fabDragMoved = false;
+  function onFabClick() {
+    if (_fabDragMoved) { _fabDragMoved = false; return; }
+    toggleAiDrawer();
+  }
+  (function initFabDrag() {
+    const fab = document.getElementById('ai-fab');
+    const POS_KEY = 'era_ai_fab_pos';
+    let drag = null;
+
+    function placeFab(x, y) {
+      x = Math.min(Math.max(8, x), window.innerWidth - fab.offsetWidth - 8);
+      y = Math.min(Math.max(8, y), window.innerHeight - fab.offsetHeight - 8);
+      fab.style.left = x + 'px';
+      fab.style.top = y + 'px';
+      fab.style.right = 'auto';
+      fab.style.bottom = 'auto';
+    }
+
+    // 恢复上次拖动位置
+    try {
+      const saved = JSON.parse(localStorage.getItem(POS_KEY) || 'null');
+      if (saved && typeof saved.x === 'number') placeFab(saved.x, saved.y);
+    } catch { /* 位置数据损坏则忽略 */ }
+
+    fab.addEventListener('pointerdown', e => {
+      const r = fab.getBoundingClientRect();
+      drag = { sx: e.clientX, sy: e.clientY, ox: r.left, oy: r.top };
+      fab.setPointerCapture(e.pointerId);
+      fab.style.cursor = 'grabbing';
+    });
+    fab.addEventListener('pointermove', e => {
+      if (!drag) return;
+      const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+      if (Math.abs(dx) + Math.abs(dy) > 6) {
+        _fabDragMoved = true;
+        placeFab(drag.ox + dx, drag.oy + dy);
+      }
+    });
+    fab.addEventListener('pointerup', () => {
+      if (_fabDragMoved) {
+        localStorage.setItem(POS_KEY, JSON.stringify({ x: fab.offsetLeft, y: fab.offsetTop }));
+      }
+      drag = null;
+      fab.style.cursor = 'grab';
+    });
+    // 拖动结束后抑制后续 click（在捕获阶段拦截，并复位标志避免卡死）
+    fab.addEventListener('click', e => {
+      if (_fabDragMoved) {
+        _fabDragMoved = false;
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }, true);
+  })();
 
   // ================= 登录态 =================
   async function initUser() {
     const username = localStorage.getItem(USER_KEY) || '';
     document.getElementById('side-username').textContent = username;
+    document.getElementById('side-mini-avatar').textContent = (username[0] || 'R').toUpperCase();
     document.getElementById('topbar-username').textContent = username;
     document.getElementById('topbar-avatar').textContent = (username[0] || 'R').toUpperCase();
     const hour = new Date().getHours();
@@ -562,15 +774,7 @@
   }
 
   // ================= 首页 =================
-  // 按全书词数粗略分档（书架页 shelf.html 使用同一口径）
-  function levelOf(wordCount) {
-    if (!wordCount) return 'A1';
-    if (wordCount < 8000) return 'A1';
-    if (wordCount < 20000) return 'A2';
-    if (wordCount < 45000) return 'B1';
-    if (wordCount < 80000) return 'B2';
-    return 'C1';
-  }
+  // 书架筛选与渲染逻辑已抽离至 shelf.html
 
   async function initHome() {
     // 并行拉书籍与最近测试结果
@@ -581,6 +785,8 @@
 
     const last = JSON.parse(localStorage.getItem(LAST_BOOK_KEY) || 'null');
     document.getElementById('stat-reading').textContent = last ? '进行中' : '未开始';
+
+    document.getElementById('shelf-entry-count').textContent = books.length;
     // 继续阅读卡片（localStorage 记录上次书目）
     if (last && books.some(b => b.id === last.book_id)) {
       const book = books.find(b => b.id === last.book_id);
@@ -630,7 +836,7 @@
     CURRENT_CHAPTERS = await api(`/books/${bookId}/chapters`);
     document.getElementById('chapter-list').innerHTML = CURRENT_CHAPTERS.map(c =>
       `<button data-ch="${c.chapter_index}" onclick="loadChapter(${c.chapter_index})"
-        class="ch-btn px-3 py-1.5 rounded-lg text-sm border transition border-gray-200 hover:border-brand-400 text-muted">
+        class="ch-btn shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-sm border transition border-gray-200 hover:border-brand-400 text-muted">
         ${c.chapter_index}. ${c.title}</button>`).join('');
 
     // 恢复上次进度：未指定章节时读服务端进度
@@ -672,6 +878,7 @@
         btn.classList.toggle('bg-brand-50', on);
         btn.classList.toggle('border-brand-400', on);
         btn.classList.toggle('text-brand-700', on);
+        if (on) btn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
       });
       document.getElementById('prev-btn').disabled = chapter.chapter_index <= 1;
       document.getElementById('next-btn').disabled = chapter.chapter_index >= CURRENT_CHAPTERS.length;
@@ -679,6 +886,7 @@
       document.getElementById('read-loading').classList.add('hidden');
       document.getElementById('read-content').classList.remove('hidden');
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      requestAnimationFrame(paginate); // 内容渲染后计算分页
 
       // 保存进度并记录最近书目
       saveProgress(percent);
@@ -704,16 +912,31 @@
   function nextChapter() { if (CURRENT) loadChapter(CURRENT.chapterIndex + 1); }
 
   // 中文对照：调用翻译接口（超长章节截断，接口上限 5000）
+  // 提取当前页可见段落的文本（分页阅读器按列平移，取视口窗口内的段落）
+  function currentPageText() {
+    const paras = Array.from(document.querySelectorAll('#read-body p'));
+    if (!paras.length) return '';
+    const w = pageMetrics().w;
+    const shellLeft = document.getElementById('book-pages').getBoundingClientRect().left;
+    const visible = paras.filter(p => {
+      const left = p.getBoundingClientRect().left - shellLeft;
+      return left >= -4 && left < w - 4;
+    });
+    return (visible.length ? visible : paras).map(p => p.textContent).join('\n\n');
+  }
+
   async function translateChapter() {
     if (!CURRENT) { toast('请先选择一本书'); return; }
     const btn = document.getElementById('translate-btn');
     const box = document.getElementById('translate-result');
+    const text = currentPageText().slice(0, 4500);
+    if (!text.trim()) { toast('当前页没有可翻译的内容'); return; }
     btn.disabled = true;
     btn.innerHTML = '<i class="fa fa-circle-o-notch fa-spin mr-1"></i>翻译中，约需十几秒...';
     try {
       const result = await api('/translate', {
         method: 'POST',
-        body: { text: CURRENT.chapter.content.slice(0, 4500), target_lang: '中文' },
+        body: { text, target_lang: '中文' },
       });
       box.textContent = result.translation;
       box.classList.remove('hidden');
@@ -721,7 +944,7 @@
       toast('翻译失败：' + err.message);
     } finally {
       btn.disabled = false;
-      btn.innerHTML = '<i class="fa fa-language mr-1"></i>翻译本章（前 4500 字符）';
+      btn.innerHTML = '<i class="fa fa-language mr-1"></i>翻译本页';
     }
   }
 
@@ -735,6 +958,7 @@
     btn.disabled = true; input.disabled = true;
     const history = document.getElementById('qa-history');
     history.classList.remove('hidden');
+    document.getElementById('qa-hint').classList.add('hidden');
     history.insertAdjacentHTML('beforeend',
       `<div class="p-3 rounded-xl bg-brand-50 text-sm self-end"><b>我：</b>${question.replace(/</g, '&lt;')}</div>
        <div id="qa-pending" class="p-3 rounded-xl bg-gray-50 text-sm text-muted"><i class="fa fa-circle-o-notch fa-spin mr-1"></i>AI 思考中...</div>`);
@@ -1047,12 +1271,18 @@
       await initUser();
       await initHome();
       initReadingSelect();
-      // hash 路由：支持书架页等外部页面深链（#read/#translate/#test/#book=<id>）
-      const hash = decodeURIComponent(location.hash.slice(1));
-      if (hash.startsWith('book=')) {
-        await openBook(parseInt(hash.slice(5)));
-      } else if (['read', 'test', 'translate'].includes(hash)) {
+      // 支持从书架页/侧边栏跳转定位：#read 打开待读书籍，#test/#translate 直达对应页
+      const hash = location.hash.slice(1);
+      if (hash === 'test' || hash === 'translate') {
         switchPage(hash);
+      } else if (hash === 'read') {
+        const pending = parseInt(localStorage.getItem(PENDING_KEY) || '');
+        localStorage.removeItem(PENDING_KEY);
+        if (pending) {
+          await openBook(pending);
+        } else {
+          switchPage('read');
+        }
       }
     } catch (err) {
       toast('初始化失败：' + err.message);
@@ -1066,7 +1296,5 @@
   });
 </script>
 
-
-  <div class='build-badge' style='position:fixed;right:8px;bottom:8px;z-index:9999;font-size:10px;color:#aaa;pointer-events:none'>build 1022-v3</div>
 </body>
 </html>

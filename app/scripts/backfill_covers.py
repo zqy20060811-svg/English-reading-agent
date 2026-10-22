@@ -7,6 +7,7 @@
 用法：python -m app.scripts.backfill_covers
 """
 import asyncio
+import html
 import json
 import time
 from pathlib import Path
@@ -25,12 +26,12 @@ REQUEST_INTERVAL = 1.0  # 对 Open Library 保持礼貌
 
 def search_cover(title: str, author: str) -> str | None:
     """按书名+作者搜索 Open Library，返回封面 URL 或 None。"""
+    params = {"title": title, "fields": "cover_i", "limit": 3}
+    # 空作者必须省略参数（传 author= 空值会触发 Open Library 500）
+    if author:
+        params["author"] = author
     try:
-        resp = requests.get(
-            SEARCH_URL,
-            params={"title": title, "author": author, "fields": "cover_i", "limit": 3},
-            timeout=30,
-        )
+        resp = requests.get(SEARCH_URL, params=params, timeout=30)
         resp.raise_for_status()
         for doc in resp.json().get("docs", []):
             if doc.get("cover_i"):
@@ -40,17 +41,46 @@ def search_cover(title: str, author: str) -> str | None:
     return None
 
 
+def clean_title(title: str) -> str:
+    """去掉副标题与括号注释，提高搜索命中率（如 'X; Or, Y (from Z)' -> 'X'）。"""
+    title = html.unescape(title)  # 爬取标题可能残留 HTML 转义符（如 &amp;）
+    for sep in (";", ":", "(", "[", "—", " -- "):
+        title = title.split(sep, 1)[0]
+    return title.strip().rstrip(".")
+
+
+def search_cover_with_retry(title: str, author: str) -> tuple[str | None, str]:
+    """三轮降级搜索：原名+作者 -> 清理书名+作者姓氏 -> 清理书名。返回 (URL, 命中方式)。"""
+    url = search_cover(title, author)
+    if url:
+        return url, "原名+作者"
+    short_title = clean_title(title)
+    last_name = author.split()[-1] if author else ""
+    if last_name:
+        url = search_cover(short_title, last_name)
+        if url:
+            return url, "清理书名+作者姓氏"
+    url = search_cover(short_title, "")
+    if url:
+        return url, "仅清理书名"
+    return None, ""
+
+
 async def main() -> None:
     async with AsyncSessionLocal() as s:
-        books = (await s.execute(select(Book).order_by(Book.id))).scalars().all()
-        print(f"共 {len(books)} 本书待匹配封面")
+        books = (
+            (await s.execute(select(Book).where(Book.cover_url.is_(None)).order_by(Book.id)))
+            .scalars()
+            .all()
+        )
+        print(f"共 {len(books)} 本书待匹配封面（已有封面的自动跳过）")
         matched = 0
         for book in books:
-            cover_url = search_cover(book.title, book.author)
+            cover_url, how = search_cover_with_retry(book.title, book.author)
             if cover_url:
                 book.cover_url = cover_url
                 matched += 1
-                print(f"  [✓] {book.title}: {cover_url}")
+                print(f"  [✓] {book.title}: {cover_url}（{how}）")
             else:
                 print(f"  [×] {book.title}: 未匹配到封面")
             # 同步写回本地 info.json（按 gutenberg_id 定位目录），便于追溯

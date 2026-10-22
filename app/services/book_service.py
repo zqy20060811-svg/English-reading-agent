@@ -46,6 +46,10 @@ class BookService:
             )
         return book, chapter
 
+    async def list_all(self, limit: int = 100) -> list[Book]:
+        """全部书籍列表（按入库顺序），供前端书架使用"""
+        return await self.repo.list_all(limit)
+
     async def search_by_title(self, title: str) -> list[Book]:
         """按书名查询书籍简介，未命中时返回 404。"""
         books = await self.repo.search_by_title(title.strip())

@@ -151,10 +151,11 @@ def quality_ok(title: str, genre: str, words: int) -> bool:
 async def sync_books_to_db() -> None:
     """爬取完成后把 data/books 信息同步入库（复用 BookService.sync_from_crawler）。"""
     from app.db.database import AsyncSessionLocal
+    from app.repositories.book_repository import BookRepository
     from app.services.book_service import BookService
 
     async with AsyncSessionLocal() as s:
-        result = await BookService(s).sync_from_crawler()
+        result = await BookService(BookRepository(s)).sync_from_crawler()
     print(f"入库完成：发现 {result.total_found} 本，新增 {result.created} 本，更新 {result.updated} 本")
 
 

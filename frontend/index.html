@@ -257,8 +257,6 @@
 <script>
   // 后端 API 地址：本地开发环境 FastAPI 服务
   const API_BASE = 'http://127.0.0.1:8002';
-  // 统一站点域名：localStorage 按域名隔离，强制 localhost 并到 127.0.0.1，避免双份登录态
-  if (location.hostname === 'localhost') location.replace('http://127.0.0.1:8080' + location.pathname + location.search);
   const TOKEN_KEY = 'era_access_token';
   const USER_KEY = 'era_username';
 
@@ -354,7 +352,7 @@
       }, 'login-btn', '登录，继续阅读');
       localStorage.setItem(TOKEN_KEY, token.access_token);
       localStorage.setItem(USER_KEY, document.getElementById('login-username').value.trim());
-      location.href = nextPath();
+      location.href = 'home.html';
     } catch (err) {
       showAlert('error', '登录失败：' + (err.message === 'Failed to fetch'
         ? '无法连接后端服务，请确认服务已启动（http://127.0.0.1:8002）'
@@ -379,24 +377,13 @@
     switchAuth('login');
   }
 
-  // 登录后的落地页：优先 ?next= 回跳来源页（如书架页），默认学习中心
-  function nextPath() {
-    const next = new URLSearchParams(location.search).get('next');
-    // 只放行站内相对 html 路径，防开放跳转
-    return next && next.endsWith('.html') && !next.includes('//') && next.startsWith('/') === false
-      ? next : 'home.html';
-  }
-
-  // 已登录用户直接进入学习中心（带 next 时回跳目标页；expired=1 表示 token 刚失效，需重新登录，不自动跳）
+  // 已登录用户直接进入学习中心
   (function init() {
-    const expired = new URLSearchParams(location.search).get('expired');
     const token = localStorage.getItem(TOKEN_KEY);
     const username = localStorage.getItem(USER_KEY);
-    if (!expired && token && username) location.href = nextPath();
+    if (token && username) location.href = 'home.html';
   })();
 </script>
 
-
-  <div class='build-badge' style='position:fixed;right:8px;bottom:8px;z-index:9999;font-size:10px;color:#aaa;pointer-events:none'>build 1022-v3</div>
 </body>
 </html>

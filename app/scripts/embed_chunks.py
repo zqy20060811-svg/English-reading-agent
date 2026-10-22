@@ -1,7 +1,6 @@
 """命令行：为 book_chunks 中缺 embedding 的块生成向量（BAAI/bge-m3 本地推理，1024 维中英文）。
 
-用法：python -m app.scripts.embed_chunks [--limit N] [--shard I --shards M]
-分片参数用于多进程并行加速（id % shards == shard 的块由本进程处理）。
+用法：python -m app.scripts.embed_chunks [--limit N]
 """
 import asyncio
 
@@ -15,12 +14,10 @@ from app.models.book_chunk import BookChunk
 BATCH_SIZE = 32
 
 
-async def embed_chunks(limit: int | None = None, shard: int | None = None, shards: int | None = None) -> int:
+async def embed_chunks(limit: int | None = None) -> int:
     """分批为缺失 embedding 的块生成向量并更新入库，返回处理的块数。"""
     async with AsyncSessionLocal() as s:
         id_q = select(BookChunk.id).where(BookChunk.embedding.is_(None))
-        if shard is not None and shards:
-            id_q = id_q.where(BookChunk.id % shards == shard)
         if limit:
             id_q = id_q.limit(limit)
         ids = (await s.execute(id_q)).scalars().all()
@@ -52,16 +49,11 @@ async def embed_chunks(limit: int | None = None, shard: int | None = None, shard
 async def main() -> None:
     import sys
 
-    limit = shard = shards = None
-    argv = sys.argv
-    if "--limit" in argv:
-        limit = int(argv[argv.index("--limit") + 1])
-    if "--shard" in argv and "--shards" in argv:
-        shard = int(argv[argv.index("--shard") + 1])
-        shards = int(argv[argv.index("--shards") + 1])
-    n = await embed_chunks(limit, shard, shards)
-    tag = f"，分片 {shard}/{shards}" if shard is not None else ""
-    print(f"embedding 生成完成：{n} 块（模型 {MODEL_NAME}，1024 维，已归一化{tag}）")
+    limit = None
+    if "--limit" in sys.argv:
+        limit = int(sys.argv[sys.argv.index("--limit") + 1])
+    n = await embed_chunks(limit)
+    print(f"embedding 生成完成：{n} 块（模型 {MODEL_NAME}，1024 维，已归一化）")
 
 
 if __name__ == "__main__":
