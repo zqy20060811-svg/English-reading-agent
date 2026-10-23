@@ -1,60 +1,30 @@
 """命令行：为 book_chunks 中缺 embedding 的块生成向量（BAAI/bge-m3 本地推理，1024 维中英文）。
 
+复用 app.pipeline.embed_missing_chunks 核心逻辑。
+
 用法：python -m app.scripts.embed_chunks [--limit N]
 """
+import argparse
 import asyncio
 
-from sqlalchemy import select
-
-from app.db.database import AsyncSessionLocal
-from app.embedding import MODEL_NAME, encode_texts
-from app.models.book import Book  # noqa: F401 确保外键表注册
-from app.models.book_chunk import BookChunk
-
-BATCH_SIZE = 32
+from app.embedding import MODEL_NAME
+from app.pipeline import embed_missing_chunks
 
 
-async def embed_chunks(limit: int | None = None) -> int:
-    """分批为缺失 embedding 的块生成向量并更新入库，返回处理的块数。"""
-    async with AsyncSessionLocal() as s:
-        id_q = select(BookChunk.id).where(BookChunk.embedding.is_(None))
-        if limit:
-            id_q = id_q.limit(limit)
-        ids = (await s.execute(id_q)).scalars().all()
-        if not ids:
-            return 0
-
-        done = 0
-        for start in range(0, len(ids), BATCH_SIZE):
-            batch_ids = ids[start : start + BATCH_SIZE]
-            rows = (
-                await s.execute(
-                    select(BookChunk.id, BookChunk.chunk_text).where(BookChunk.id.in_(batch_ids))
-                )
-            ).all()
-            texts = [r.chunk_text for r in rows]
-            vectors = encode_texts(texts)  # 共用 app.embedding 单例模型
-            for (chunk_id, _), vec in zip(rows, vectors):
-                await s.execute(
-                    BookChunk.__table__.update()
-                    .where(BookChunk.id == chunk_id)
-                    .values(embedding=vec)
-                )
-            await s.commit()
-            done += len(rows)
-            print(f"  进度 {done}/{len(ids)}")
-        return done
-
-
-async def main() -> None:
-    import sys
-
-    limit = None
-    if "--limit" in sys.argv:
-        limit = int(sys.argv[sys.argv.index("--limit") + 1])
-    n = await embed_chunks(limit)
-    print(f"embedding 生成完成：{n} 块（模型 {MODEL_NAME}，1024 维，已归一化）")
+async def main(limit: int | None = None) -> None:
+    stats = await embed_missing_chunks(limit)
+    n = stats["chunks"]
+    if n == 0:
+        print("没有缺 embedding 的块，无需处理")
+        return
+    print(
+        f"embedding 生成完成：{n} 块（模型 {MODEL_NAME}，1024 维，已归一化）\n"
+        f"耗时：模型加载 {stats['model_s']:.1f}s / 编码 {stats['encode_s']:.1f}s / 写库 {stats['db_s']:.1f}s"
+    )
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--limit", type=int, default=None, help="最多处理的块数")
+    args = parser.parse_args()
+    asyncio.run(main(args.limit))

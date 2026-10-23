@@ -15,8 +15,10 @@ Gutenberg 不收录，故使用同类公版读物替代。
     4. 入库由 python -m app.crawler 同步（POST /books/sync 或 load_books 流程）。
 
 用法：
-    python -m app.scripts.crawl_easy_books                # 爬取至累计 110 本成功
+    python -m app.scripts.crawl_easy_books                # 爬取至累计 110 本成功（只同步书籍信息）
     python -m app.scripts.crawl_easy_books --target 30    # 自定义目标
+    python -m app.scripts.crawl_easy_books --ingest       # 爬完直连入库：同步→切章→分块
+    python -m app.scripts.crawl_easy_books --ingest --embed  # 再加向量化（耗时长）
     python -m app.scripts.crawl_easy_books --dry-run      # 仅收集候选与元数据，不下载
 """
 import argparse
@@ -151,16 +153,19 @@ def quality_ok(title: str, genre: str, words: int) -> bool:
 async def sync_books_to_db() -> None:
     """爬取完成后把 data/books 信息同步入库（复用 BookService.sync_from_crawler）。"""
     from app.db.database import AsyncSessionLocal
-    from app.repositories.book_repository import BookRepository
     from app.services.book_service import BookService
 
     async with AsyncSessionLocal() as s:
-        result = await BookService(BookRepository(s)).sync_from_crawler()
+        result = await BookService(s).sync_from_crawler()
     print(f"入库完成：发现 {result.total_found} 本，新增 {result.created} 本，更新 {result.updated} 本")
 
 
-def main(target: int, dry_run: bool, skip_sync: bool) -> None:
+def main(target: int, dry_run: bool, skip_sync: bool, ingest: bool = False, embed: bool = False) -> None:
     session = build_session()
+
+    # 各环节耗时统计（秒）
+    stage = {"候选收集": 0.0, "元数据": 0.0, "下载": 0.0, "清洗": 0.0, "落盘": 0.0, "间隔等待": 0.0}
+    new_ids: list[int] = []  # 本次成功落盘的书（古登堡 ID），供直连入库流水线使用
 
     # 已有本地书目（跳过重复）
     existing_ids: set[int] = set()
@@ -169,8 +174,10 @@ def main(target: int, dry_run: bool, skip_sync: bool) -> None:
         existing_ids.add(info["gutenberg_id"])
     print(f"本地已有 {len(existing_ids)} 本书，目标再爬 {target} 本")
 
+    t0 = time.perf_counter()
     candidates = collect_candidates(session)
-    print(f"候选池：{len(candidates)} 本")
+    stage["候选收集"] = time.perf_counter() - t0
+    print(f"候选池：{len(candidates)} 本（耗时 {stage['候选收集']:.1f}s）")
 
     succeeded = 0
     for gutenberg_id, genre in candidates:
@@ -178,7 +185,9 @@ def main(target: int, dry_run: bool, skip_sync: bool) -> None:
             continue
         if succeeded >= target:
             break
+        t0 = time.perf_counter()
         meta = fetch_meta(session, gutenberg_id)
+        stage["元数据"] += time.perf_counter() - t0
         if meta is None:
             continue
         if dry_run:
@@ -187,14 +196,25 @@ def main(target: int, dry_run: bool, skip_sync: bool) -> None:
             continue
         url = TXT_URL_TEMPLATE.format(book_id=gutenberg_id)
         try:
+            t0 = time.perf_counter()
             raw = session.get(url, timeout=120)
+            if raw.status_code == 404:
+                # 部分书没有 pg{N}.txt，回退到 utf-8 版本
+                url = url[:-4] + ".txt.utf-8"
+                raw = session.get(url, timeout=120)
             raw.raise_for_status()
             raw.encoding = "utf-8"
+            stage["下载"] += time.perf_counter() - t0
+
+            t0 = time.perf_counter()
             content = clean_gutenberg_text(raw.text)
             words = count_words(content)
+            stage["清洗"] += time.perf_counter() - t0
             if not (MIN_WORDS <= words <= MAX_WORDS) or not quality_ok(meta["title"], genre, words):
                 print(f"  [跳过] {meta['title']}：{words} 词或质量过滤未通过")
                 continue
+
+            t0 = time.perf_counter()
             book = BookMeta(
                 gutenberg_id=gutenberg_id,
                 title=meta["title"],
@@ -207,16 +227,40 @@ def main(target: int, dry_run: bool, skip_sync: bool) -> None:
                 ),
             )
             info = save_book(book, content, DEFAULT_OUTPUT_DIR)
+            stage["落盘"] += time.perf_counter() - t0
+
             existing_ids.add(gutenberg_id)
+            new_ids.append(gutenberg_id)
             succeeded += 1
-            print(f"  [✓ {succeeded}/{target}] {info['title']}（{genre}，{words} 词）")
+            print(
+                f"  [✓ {succeeded}/{target}] {info['title']}（{genre}，{words} 词）"
+                f" [下载 {stage['下载']:.1f}s 累计]"
+            )
         except Exception as exc:
             print(f"  [失败] #{gutenberg_id} {meta.get('title', '')}: {exc}")
+        t0 = time.perf_counter()
         time.sleep(REQUEST_INTERVAL)
+        stage["间隔等待"] += time.perf_counter() - t0
 
     print(f"爬取完成：本次成功 {succeeded} 本")
-    if not dry_run and not skip_sync and succeeded > 0:
+    if succeeded:
+        print("各环节累计耗时：")
+        for name, sec in stage.items():
+            if sec:
+                print(f"  {name}: {sec:.1f}s")
+    if dry_run:
+        return
+
+    if ingest or embed:
+        # 直连入库流水线：书籍同步 → 章节切分 → 分块（→ 可选向量化）
+        from app.pipeline import run_ingest
+
+        asyncio.run(run_ingest(new_ids, embed=embed))
+    elif not skip_sync and succeeded > 0:
+        # 旧行为：只同步书籍信息
+        t0 = time.perf_counter()
         asyncio.run(sync_books_to_db())
+        print(f"入库同步耗时：{time.perf_counter() - t0:.1f}s")
 
 
 if __name__ == "__main__":
@@ -224,6 +268,14 @@ if __name__ == "__main__":
     parser.add_argument("--target", type=int, default=110, help="本次目标爬取数量")
     parser.add_argument("--dry-run", action="store_true", help="仅收集候选与元数据，不下载")
     parser.add_argument("--skip-sync", action="store_true", help="爬完不入库（后续手动同步）")
+    parser.add_argument(
+        "--ingest", action="store_true",
+        help="爬完直连入库流水线：书籍同步→章节切分→分块（含书籍同步，忽略 --skip-sync）",
+    )
+    parser.add_argument(
+        "--embed", action="store_true",
+        help="在 --ingest 基础上同时向量化（CPU 约 2.4 块/秒，千块约 8 分钟）",
+    )
     args = parser.parse_args()
-    main(args.target, args.dry_run, args.skip_sync)
+    main(args.target, args.dry_run, args.skip_sync, args.ingest, args.embed)
     sys.exit(0)

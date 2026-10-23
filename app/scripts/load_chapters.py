@@ -15,6 +15,13 @@ async def main() -> None:
         await conn.run_sync(Base.metadata.create_all)
     stats = await sync_chapters_from_local()
     print(f"入库完成：{stats['books']} 本书，共 {stats['chapters']} 章，跳过 {stats['skipped']} 本（书籍表无记录）")
+    print(
+        f"耗时：读取 {stats['read_s']:.2f}s / 切分 {stats['split_s']:.2f}s / "
+        f"数据库 {stats['db_s']:.2f}s / 提交 {stats['commit_s']:.2f}s，总 {stats['total_s']:.2f}s"
+    )
+    title, sec = stats["slowest"]
+    if title:
+        print(f"最慢一本书：{title}（{sec:.2f}s）")
 
 
 if __name__ == "__main__":

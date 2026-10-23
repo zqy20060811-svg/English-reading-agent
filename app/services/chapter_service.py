@@ -175,13 +175,35 @@ def _word_count(text: str) -> int:
 
 
 async def sync_chapters_from_local(
-    books_dir: Path = DEFAULT_BOOKS_DIR, session: AsyncSession | None = None
+    books_dir: Path = DEFAULT_BOOKS_DIR,
+    session: AsyncSession | None = None,
+    only_ids: set[int] | None = None,
 ) -> dict:
-    """解析本地书源目录，切分章节并全量替换入库（幂等）。"""
+    """解析本地书源目录，切分章节并全量替换入库（幂等）。
+
+    only_ids 传入古登堡 ID 集合时只处理这些书（新书入库流水线用），
+    None 表示全量处理。
+
+    返回统计中附带各环节耗时：read_s 读取、split_s 切分、db_s 数据库操作、
+    commit_s 提交、total_s 总耗时，以及 slowest（最慢一本书及其耗时）。
+    """
+    import time
+
     own_session = session is None
     if own_session:
         session = AsyncSessionLocal()
-    stats = {"books": 0, "chapters": 0, "skipped": 0}
+    stats = {
+        "books": 0,
+        "chapters": 0,
+        "skipped": 0,
+        "read_s": 0.0,
+        "split_s": 0.0,
+        "db_s": 0.0,
+        "commit_s": 0.0,
+        "total_s": 0.0,
+        "slowest": ("", 0.0),
+    }
+    t_start = time.perf_counter()
     try:
         for book_dir in sorted(books_dir.iterdir()):
             info_path = book_dir / "info.json"
@@ -189,6 +211,11 @@ async def sync_chapters_from_local(
             if not info_path.exists() or not content_path.exists():
                 continue
             info = json.loads(info_path.read_text(encoding="utf-8"))
+            if only_ids is not None and info["gutenberg_id"] not in only_ids:
+                continue
+            t_book = time.perf_counter()
+
+            t0 = time.perf_counter()
             book = (
                 await session.execute(
                     select(Book).where(Book.gutenberg_id == info["gutenberg_id"])
@@ -199,10 +226,15 @@ async def sync_chapters_from_local(
                 continue
 
             content = content_path.read_text(encoding="utf-8")
+            stats["read_s"] += time.perf_counter() - t0
+
+            t0 = time.perf_counter()
             parts = split_chapters(content)
+            stats["split_s"] += time.perf_counter() - t0
 
             # 幂等 upsert：按 (book_id, chapter_index) 更新已存在的章节（保持主键不变，
             # 避免下游 book_chunks.chapter_id 全部失联），多退少补
+            t0 = time.perf_counter()
             existing = (
                 await session.execute(select(BookChapter).where(BookChapter.book_id == book.id))
             ).scalars().all()
@@ -226,9 +258,17 @@ async def sync_chapters_from_local(
             stale_ids = [c.id for idx, c in by_index.items() if idx > len(parts)]
             if stale_ids:
                 await session.execute(delete(BookChapter).where(BookChapter.id.in_(stale_ids)))
+            stats["db_s"] += time.perf_counter() - t0
+
             stats["books"] += 1
             stats["chapters"] += len(parts)
+            book_elapsed = time.perf_counter() - t_book
+            if book_elapsed > stats["slowest"][1]:
+                stats["slowest"] = (info["title"], book_elapsed)
+        t0 = time.perf_counter()
         await session.commit()
+        stats["commit_s"] = time.perf_counter() - t0
+        stats["total_s"] = time.perf_counter() - t_start
         return stats
     finally:
         if own_session:
