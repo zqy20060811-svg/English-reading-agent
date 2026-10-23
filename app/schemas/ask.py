@@ -19,3 +19,4 @@ class AskResponse(BaseModel):
     """大模型回答"""
 
     answer: str
+    scope: str | None = None  # 证据范围：chapter=当前章节 / book=扩展到整本书 / none=未找到依据（仅 /ask/reading）

@@ -18,6 +18,8 @@ from app.repositories.chunk_repository import ChunkHit, ChunkRepository
 TOP_K = 5  # 默认返回条数
 RRF_K = 60  # RRF 常数：越大排名差距影响越平滑，业界默认 60
 CANDIDATE_K = 10  # 每路召回的候选条数（融合前取宽，融合后取 top_k）
+CHAPTER_MIN_HITS = 2  # 章内证据充分性：至少命中条数
+CHAPTER_CONFIDENT_DISTANCE = 0.65  # 章内证据充分性：最优向量距离上限（余弦距离）
 
 
 @dataclass
@@ -27,6 +29,7 @@ class RetrievalResult:
     hits: list[ChunkHit]
     context: str  # 拼装后可直接注入 prompt 的证据文本
     query: str
+    scope: str = "book"  # 证据范围：chapter=当前章节 / book=扩展到整本书 / none=零命中
 
 
 def rrf_fuse(
@@ -69,8 +72,8 @@ def rrf_fuse(
 class RetrievalService:
     """RAG 混合检索服务"""
 
-    def __init__(self, db: AsyncSession):
-        self.chunk_repo = ChunkRepository(db)
+    def __init__(self, db: AsyncSession, chunk_repo: ChunkRepository | None = None):
+        self.chunk_repo = chunk_repo if chunk_repo is not None else ChunkRepository(db)
 
     async def retrieve_for_question(
         self,
@@ -124,6 +127,65 @@ class RetrievalService:
 
         fused = rrf_fuse(lists, top_k=top_k)
         return RetrievalResult(hits=fused, context=self.format_context(fused), query=question)
+
+    async def retrieve_with_scope(
+        self,
+        question: str,
+        book_id: int,
+        chapter_id: int,
+        top_k: int = TOP_K,
+        rewriter=None,
+    ) -> RetrievalResult:
+        """两阶段范围检索：章节优先，证据不足再扩展到整本书（产品规则）。
+
+        - 第一阶段：只在当前章节内混合检索；命中数 ≥ CHAPTER_MIN_HITS 且最优
+          向量距离 ≤ CHAPTER_CONFIDENT_DISTANCE 视为「章内证据充分」，直接使用
+        - 第二阶段：章内不足时扩展到全书检索，结果与章内前几条去重合并
+          （章内命中排最前，保证「以本章为主」的语义）
+        - 两阶段共用一次查询改写结果，避免 LLM 改写延迟翻倍
+        - 全程零命中返回 scope="none"，由路由层直接拒答（不再回退整章原文）
+        """
+        # 查询改写只做一次，两阶段复用（LLM 改写耗时 1~2.5s，不能重复花）
+        cached_rewrite: str | None = None
+        if rewriter is not None:
+            cached_rewrite = await rewriter(question)
+
+        async def reuse_rewrite(_q: str) -> str:
+            assert cached_rewrite is not None
+            return cached_rewrite
+
+        chapter_rewriter = reuse_rewrite if rewriter is not None else None
+
+        chapter_result = await self.retrieve_for_question(
+            question, book_id=book_id, chapter_id=chapter_id,
+            top_k=top_k, rewriter=chapter_rewriter,
+        )
+        chapter_hits = chapter_result.hits
+
+        distances = [h.distance for h in chapter_hits if h.distance is not None]
+        best_distance = min(distances) if distances else None
+        confident = len(chapter_hits) >= CHAPTER_MIN_HITS and (
+            best_distance is not None and best_distance <= CHAPTER_CONFIDENT_DISTANCE
+        )
+        if confident:
+            return RetrievalResult(
+                hits=chapter_hits, context=self.format_context(chapter_hits),
+                query=question, scope="chapter",
+            )
+
+        # 章内证据不足：扩展到整本书检索
+        book_result = await self.retrieve_for_question(
+            question, book_id=book_id, top_k=top_k, rewriter=chapter_rewriter,
+        )
+        chapter_ids = {h.chunk_id for h in chapter_hits}
+        merged = chapter_hits[:CHAPTER_MIN_HITS] + [
+            h for h in book_result.hits if h.chunk_id not in chapter_ids
+        ][: max(0, top_k - min(len(chapter_hits), CHAPTER_MIN_HITS))]
+        if not merged:
+            return RetrievalResult(hits=[], context="", query=question, scope="none")
+        return RetrievalResult(
+            hits=merged, context=self.format_context(merged), query=question, scope="book",
+        )
 
     @staticmethod
     def format_context(hits: list[ChunkHit]) -> str:

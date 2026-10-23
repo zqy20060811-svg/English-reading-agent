@@ -967,8 +967,13 @@
         method: 'POST',
         body: { book_id: CURRENT.book.id, chapter_index: CURRENT.chapterIndex, question },
       });
+      const scopeText = result.scope === 'chapter' ? '依据：本章内容'
+        : result.scope === 'book' ? '依据：本章 + 全书检索'
+        : result.scope === 'none' ? '未找到相关依据'
+        : null;
       document.getElementById('qa-pending').outerHTML =
-        `<div class="p-3 rounded-xl bg-mint-50 border border-mint-100 text-sm whitespace-pre-line">${result.answer.replace(/</g, '&lt;')}</div>`;
+        `<div class="p-3 rounded-xl bg-mint-50 border border-mint-100 text-sm whitespace-pre-line">${result.answer.replace(/</g, '&lt;')}</div>` +
+        (scopeText ? `<div class="px-3 pt-1 text-xs text-muted self-end"><i class="fa fa-search mr-1"></i>${scopeText}</div>` : '');
     } catch (err) {
       document.getElementById('qa-pending').outerHTML =
         `<div class="p-3 rounded-xl bg-red-50 text-sm text-red-600">回答失败：${err.message}</div>`;
