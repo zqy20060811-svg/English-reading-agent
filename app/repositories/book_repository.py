@@ -24,6 +24,13 @@ class BookRepository:
         result = await self.db.execute(select(Book).order_by(Book.id).limit(limit))
         return list(result.scalars().all())
 
+    async def list_by_ids(self, book_ids: list[int]) -> list[Book]:
+        """按 id 批量取书（热门榜单拼接书籍信息用）"""
+        if not book_ids:
+            return []
+        result = await self.db.execute(select(Book).where(Book.id.in_(book_ids)))
+        return list(result.scalars().all())
+
     async def search_by_title(self, title: str) -> list[Book]:
         """按书名模糊查询（大小写不敏感），完全匹配的排在最前。"""
         pattern = f"%{title}%"

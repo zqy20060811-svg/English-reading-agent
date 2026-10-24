@@ -8,8 +8,10 @@ from app.crawler.books_catalog import BOOK_CATALOG
 from app.crawler.scraper import DEFAULT_OUTPUT_DIR
 from app.db.database import get_db
 from app.models.book import Book
+from app.repositories.book_interaction_repository import BookInteractionRepository
 from app.repositories.book_repository import BookRepository
 from app.repositories.chapter_repository import ChapterRepository
+from app.repositories.reading_progress_repository import ReadingProgressRepository
 from app.schemas.book import BookSyncResult
 
 
@@ -19,6 +21,15 @@ class BookService:
     def __init__(self, db: AsyncSession):
         self.repo = BookRepository(db)
         self.chapter_repo = ChapterRepository(db)
+        self.progress_repo = ReadingProgressRepository(db)
+        self.interaction_repo = BookInteractionRepository(db)
+
+    async def list_my_books(self, user_id: int) -> list[Book]:
+        """当前用户的书单：读过的 + 点赞/收藏过的（并集去重），供阅读页下拉选择"""
+        read_ids = await self.progress_repo.list_book_ids(user_id)
+        active_ids = await self.interaction_repo.list_active_book_ids(user_id)
+        book_ids = list(dict.fromkeys([*read_ids, *active_ids]))  # 去重且保持顺序
+        return await self.repo.list_by_ids(book_ids)
 
     async def list_chapters(self, book_id: int) -> tuple[Book, list]:
         """返回书籍与章节目录；书籍不存在或未入库章节时返回 404。"""

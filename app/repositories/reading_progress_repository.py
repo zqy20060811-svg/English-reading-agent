@@ -19,6 +19,13 @@ class ReadingProgressRepository:
         )
         return result.scalar_one_or_none()
 
+    async def list_book_ids(self, user_id: int) -> list[int]:
+        """用户读过的全部书籍 id（有阅读进度即视为读过）"""
+        result = await self.db.execute(
+            select(UserReadingProgress.book_id).where(UserReadingProgress.user_id == user_id)
+        )
+        return list(result.scalars().all())
+
     async def upsert(
         self, user_id: int, book_id: int, chapter_index: int, char_offset: int, percent: float
     ) -> UserReadingProgress:

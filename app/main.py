@@ -15,6 +15,8 @@ from app.models import (  # noqa: F401 确保模型注册到 metadata
     book,
     book_chapter,
     book_chunk,
+    book_event,
+    book_interaction,
     level_test_result,
     reading_progress,
     translation_record,
