@@ -7,8 +7,9 @@
 | 模块 | 说明 |
 | --- | --- |
 | 认证 | 注册 / 登录，JWT Bearer token 校验，所有业务接口均需登录 |
-| 书架 | 115 本公版英文书（16 个分类标签），分类 / 难度筛选与搜索，Open Library 真实封面，缺封面用树皮纹理占位 |
-| 阅读器 | 章节目录、分页排版（固定阅读框 + 键盘翻页）、阅读进度自动保存续读、侧边栏可收纳 |
+| 书架 | 118 本公版英文书（16 个中文分类标签），分类 / 难度筛选与搜索，分页浏览，热门书籍角标，Open Library 真实封面，缺封面用树皮纹理占位 |
+| 排行榜 | 热度榜单：浏览 / 读完章节 / 点赞 / 收藏加权 + 14 天半衰期衰减 + 贝叶斯收缩，计算 0-100 热度分，Redis 缓存 10 分钟 |
+| 阅读器 | 章节目录、分页排版（固定阅读框 + 键盘翻页）、阅读进度自动保存续读、「我的书单」下拉（只列读过 / 点赞 / 收藏过的书）、点赞 / 收藏按钮 |
 | AI 问答 | `/ask/reading`：基于当前章节的 RAG 检索问答，证据不足时明确拒答不编造 |
 | AI 翻译 | 翻译本页 / 任意语言对互译，多翻译通道与付费通道预留 |
 | 水平测试 | 24 题静态题库（A2~C1 × 词汇/语法/阅读），自动评分定级，按难度推荐书单并保存历史 |
@@ -16,9 +17,9 @@
 ## 技术栈
 
 - **后端**：FastAPI + SQLAlchemy（async）+ pydantic-settings，同步第三方调用走线程池
-- **数据库**：PostgreSQL 16 + pgvector（向量检索）、内置 ts_rank 全文检索、Redis（token 存储）
+- **数据库**：PostgreSQL 16 + pgvector（向量检索）、内置 ts_rank 全文检索、Redis（token 与热度榜单缓存）
 - **AI**：BGE-M3 本地 embedding（1024 维）、DeepSeek chat API（问答 / 查询改写 / 翻译）
-- **前端**：原生 HTML + Tailwind CDN，无构建步骤
+- **前端**：Vue 3 + Vite + Tailwind CSS（`frontend-app/`），组件化单页应用
 - **测试**：pytest（单元测试 + 检索基准）
 
 ## 架构
@@ -28,7 +29,7 @@
 ```
 app/
 ├── api/routes/        # 路由：auth、book、reading、ask、level_test、translate
-├── services/          # 业务：book、reading、chapter、level_test、translation、retrieval、llm、user
+├── services/          # 业务：book、reading、chapter、hotness、level_test、translation、retrieval、llm、user
 ├── repositories/      # 数据访问
 ├── models/            # SQLAlchemy 模型
 ├── schemas/           # Pydantic 请求/响应模型
@@ -37,7 +38,7 @@ app/
 ├── chunking.py        # 递归字符分块（800/100，段落优先）
 ├── embedding.py       # BGE-M3 单例加载
 └── level_bank.py      # 水平测试题库
-frontend/               # 登录页、学习中心（阅读/测试/翻译）、独立书架页
+frontend-app/           # Vue 3 + Vite + Tailwind 前端（登录、书库、阅读、水平测试、翻译）
 tests/                  # pytest 测试与 25 题检索基准
 data/books/             # 爬取的书籍内容（gitignore，不入库）
 ```
@@ -68,10 +69,10 @@ python -m app.scripts.backfill_covers          # Open Library 封面回填
 
 # 5. 启动
 uvicorn app.main:app --host 127.0.0.1 --port 8002          # 后端（启动时自动建表/建索引/启用 pgvector）
-python -m http.server 8080 --directory frontend            # 前端静态服务
+cd frontend-app && npm install && npm run dev              # 前端开发服务器（http://localhost:5173）
 ```
 
-访问 `http://localhost:8080/index.html` 注册登录后使用；接口文档在 `http://127.0.0.1:8002/docs`。
+访问 `http://localhost:5173` 注册登录后使用；接口文档在 `http://127.0.0.1:8002/docs`。生产部署执行 `npm run build` 后托管 `frontend-app/dist/` 静态产物。
 
 ## 主要接口
 
@@ -80,7 +81,12 @@ python -m http.server 8080 --directory frontend            # 前端静态服务
 | POST | /auth/register · /auth/login | 注册 / 登录 |
 | GET | /me | 当前用户信息 |
 | GET | /books | 书籍列表（书架） |
+| GET | /books/mine | 我的书单（读过 / 点赞 / 收藏过的书） |
 | GET | /books/search?title= | 按书名查简介 |
+| GET | /books/hot | 热门榜单（按热度分排序） |
+| GET | /books/{book_id}/hot | 单本书热度详情（分项计数 + 排名 + 互动状态） |
+| POST | /books/{book_id}/like · /favorite | 点赞 / 收藏切换 |
+| POST | /books/{book_id}/events | 阅读行为上报（读完章节，同人同书每日限计 1 次） |
 | GET | /books/{book_id}/chapters | 章节目录 |
 | GET | /books/{book_id}/chapters/{chapter_index} | 章节正文 |
 | GET/PUT | /reading/progress/{book_id} | 阅读进度读取 / 保存 |

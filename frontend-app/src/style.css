@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-paper text-ink font-sans antialiased;
+}
+
+/* 书名衬线斜体 */
+.book-title {
+  @apply font-serifTitle italic;
+}
+
+/* 章节正文排版：首行缩进 + 舒适行距（阅读沉浸感） */
+.prose-book p {
+  text-indent: 2em;
+  margin-top: 1.25rem;
+  line-height: 2.05;
+}
+.prose-book p:first-child {
+  margin-top: 0;
+}
+
+/* 章末过渡页占据完整一列的观感 */
+.chapter-end {
+  break-inside: avoid;
+}
+
+/* 无封面书的树皮纹理占位 */
+.cover-fallback {
+  background:
+    repeating-linear-gradient(95deg, rgba(0, 0, 0, .10) 0 2px, rgba(0, 0, 0, 0) 2px 5px, rgba(255, 255, 255, .05) 5px 6px, rgba(0, 0, 0, 0) 6px 11px),
+    repeating-linear-gradient(88deg, rgba(0, 0, 0, .06) 0 8px, rgba(0, 0, 0, 0) 8px 16px),
+    linear-gradient(165deg, #8a5a33 0%, #6b4226 45%, #4a2c17 100%);
+  color: #f3e2c7;
+  box-shadow: inset 0 0 32px rgba(0, 0, 0, .38);
+}
+.cover-fallback-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 深色卡片内隐藏横向滚动条（继续阅读区） */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+/* 提示条过渡 */
+.toast-enter-active,
+.toast-leave-active {
+  transition: all .25s ease;
+}
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 8px);
+}
+
+/* 页面切换过渡 */
+.page-enter-active,
+.page-leave-active {
+  transition: opacity .18s ease;
+}
+.page-enter-from,
+.page-leave-to {
+  opacity: 0;
+}

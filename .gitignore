@@ -17,6 +17,10 @@ data/
 # 前端演示参考稿（仅本地参考，不入库）
 frontend-display/
 
+# 前端依赖与构建产物
+frontend-app/node_modules/
+frontend-app/dist/
+
 # IDE
 .idea/
 .vscode/
