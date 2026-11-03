@@ -122,3 +122,83 @@ export interface SelBubble {
   y: number
   text: string
 }
+
+// /me 返回的当前用户信息
+export interface UserInfo {
+  id: number
+  username: string
+  email: string
+  email_verified: boolean
+  is_admin: boolean
+  created_at: string
+}
+
+// ============ 管理后台 ============
+
+export interface AdminBook {
+  id: number
+  gutenberg_id: number
+  title: string
+  author: string
+  year: number
+  genre: string
+  word_count: number
+  is_active: boolean
+}
+
+export interface AdminUser {
+  id: number
+  username: string
+  email: string
+  email_verified: boolean
+  is_admin: boolean
+  is_disabled: boolean
+  created_at: string
+}
+
+export interface IngestTask {
+  id: number
+  gutenberg_id: number
+  embed: boolean
+  status: 'pending' | 'running' | 'success' | 'failed'
+  attempts: number
+  error: string | null
+  created_by: number
+  created_at: string
+  started_at: string | null
+  finished_at: string | null
+}
+
+export interface SceneUsage {
+  scene: string
+  calls: number
+  prompt_tokens: number
+  completion_tokens: number
+  cost_usd: number
+}
+
+export interface DailyUsage {
+  day: string
+  calls: number
+  prompt_tokens: number
+  completion_tokens: number
+  cost_usd: number
+}
+
+export interface AIStats {
+  days: number
+  total_calls: number
+  total_prompt_tokens: number
+  total_completion_tokens: number
+  total_cost_usd: number
+  by_scene: SceneUsage[]
+  by_day: DailyUsage[]
+}
+
+export interface AdminOverview {
+  total_users: number
+  total_books: number
+  active_books: number
+  running_or_pending_tasks: number
+  ai_calls_today: number
+}

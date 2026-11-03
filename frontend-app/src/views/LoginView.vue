@@ -3,7 +3,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, TOKEN_KEY, REFRESH_KEY, USER_KEY } from '../api/client'
-import { toast } from '../store'
+import { loadMe, toast } from '../store'
 
 const router = useRouter()
 const tab = ref<'login' | 'register'>('login')
@@ -33,6 +33,7 @@ async function doLogin() {
     localStorage.setItem(TOKEN_KEY, token.access_token)
     localStorage.setItem(REFRESH_KEY, token.refresh_token)
     localStorage.setItem(USER_KEY, loginForm.value.username.trim())
+    await loadMe() // 拉取用户信息（含 is_admin，管理后台入口用）
     router.replace('/')
   } catch (err) {
     showAlert('error', '登录失败：' + ((err as Error).message === 'Failed to fetch'

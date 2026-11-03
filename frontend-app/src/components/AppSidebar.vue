@@ -13,15 +13,20 @@ interface NavItem {
   label: string
 }
 
-const navs: NavItem[] = [
-  { name: 'library', icon: 'fa-th-large', label: '书库' },
-  { name: 'shelf', icon: 'fa-bookmark-o', label: '书架' },
-  { name: 'reader', icon: 'fa-book', label: '阅读' },
-  { name: 'vocabulary', icon: 'fa-graduation-cap', label: '生词本' },
-  { name: 'test', icon: 'fa-pencil-square-o', label: '水平测试' },
-  { name: 'translate', icon: 'fa-font', label: '翻译' },
-  { name: 'rank', icon: 'fa-fire', label: '排行榜' },
-]
+const navs = computed<NavItem[]>(() => {
+  const base: NavItem[] = [
+    { name: 'library', icon: 'fa-th-large', label: '书库' },
+    { name: 'shelf', icon: 'fa-bookmark-o', label: '书架' },
+    { name: 'reader', icon: 'fa-book', label: '阅读' },
+    { name: 'vocabulary', icon: 'fa-graduation-cap', label: '生词本' },
+    { name: 'test', icon: 'fa-pencil-square-o', label: '水平测试' },
+    { name: 'translate', icon: 'fa-font', label: '翻译' },
+    { name: 'rank', icon: 'fa-fire', label: '排行榜' },
+  ]
+  // 管理员追加后台入口
+  if (store.me?.is_admin) base.push({ name: 'admin', icon: 'fa-shield', label: '管理后台' })
+  return base
+})
 
 const activeName = computed(() => (route.name === 'library' || route.name === 'login' ? 'library' : (route.name as string)))
 const avatar = computed(() => (store.username[0] || 'R').toUpperCase())

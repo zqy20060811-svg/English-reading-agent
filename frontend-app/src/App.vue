@@ -1,7 +1,13 @@
 <script setup lang="ts">
+// 应用骨架：登录页独立布局；桌面端左侧深色侧边栏，移动端底部 Tab 导航
+import { onMounted } from 'vue'
 import AppSidebar from './components/AppSidebar.vue'
 import MobileTabBar from './components/MobileTabBar.vue'
 import ToastHost from './components/ToastHost.vue'
+import { loadMe } from './store'
+
+// 应用启动即拉取当前用户信息（含 is_admin，管理后台入口显隐）
+onMounted(loadMe)
 </script>
 
 <template>

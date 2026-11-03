@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { getToken } from '../api/client'
+import { loadMe, store } from '../store'
 
 const routes = [
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue') },
@@ -12,6 +13,16 @@ const routes = [
   { path: '/vocabulary', name: 'vocabulary', component: () => import('../views/VocabularyView.vue') },
   { path: '/profile', name: 'profile', component: () => import('../views/PersonalView.vue') },
   { path: '/settings', name: 'settings', component: () => import('../views/SettingsView.vue') },
+  {
+    path: '/admin',
+    name: 'admin',
+    component: () => import('../views/AdminView.vue'),
+    // 路由级守卫：仅管理员可进（刷新后先补拉 /me 再判断）
+    beforeEnter: async () => {
+      const me = store.me || (await loadMe())
+      if (!me?.is_admin) return { name: 'library' }
+    },
+  },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 

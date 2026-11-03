@@ -1,10 +1,11 @@
 import { reactive } from 'vue'
 import { api, getToken, USER_KEY } from './api/client'
-import type { Book } from './types'
+import type { Book, UserInfo } from './types'
 
 // 全局轻量状态：登录用户 / 英语等级 / 书库缓存 / 全局提示
 export const store = reactive({
   username: localStorage.getItem(USER_KEY) || '',
+  me: null as UserInfo | null,        // /me 拉取的完整用户信息（含 is_admin）
   level: null as string | null,
   books: [] as Book[],
   booksLoaded: false,
@@ -36,6 +37,18 @@ export function toast(text: string, type: 'error' | 'ok' | 'success' | 'info' = 
     const i = store.toasts.findIndex(t => t.id === id)
     if (i !== -1) store.toasts.splice(i, 1)
   }, 3000)
+}
+
+// 拉取当前用户信息（含 is_admin，失败静默；登出时置空）
+export async function loadMe(): Promise<UserInfo | null> {
+  if (!getToken()) return null
+  try {
+    store.me = await api<UserInfo>('/me')
+    store.username = store.me.username
+  } catch {
+    store.me = null
+  }
+  return store.me
 }
 
 // 拉取当前用户英语等级（未测试时静默置空）
