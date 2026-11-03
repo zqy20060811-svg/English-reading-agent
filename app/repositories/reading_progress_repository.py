@@ -1,4 +1,5 @@
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reading_progress import UserReadingProgress
@@ -30,10 +31,10 @@ class ReadingProgressRepository:
         self, user_id: int, book_id: int, chapter_index: int,
         char_offset: int, percent: float, page_index: int = 0,
     ) -> UserReadingProgress:
-        """每人每书一行，存在则更新，不存在则插入"""
-        row = await self.get(user_id, book_id)
-        if row is None:
-            row = UserReadingProgress(
+        """每人每书一行，存在则更新，不存在则插入（原子 upsert，并发保存安全）"""
+        stmt = (
+            pg_insert(UserReadingProgress)
+            .values(
                 user_id=user_id,
                 book_id=book_id,
                 chapter_index=chapter_index,
@@ -41,12 +42,18 @@ class ReadingProgressRepository:
                 page_index=page_index,
                 percent=percent,
             )
-            self.db.add(row)
-        else:
-            row.chapter_index = chapter_index
-            row.char_offset = char_offset
-            row.page_index = page_index
-            row.percent = percent
+            .on_conflict_do_update(
+                index_elements=["user_id", "book_id"],
+                set_={
+                    "chapter_index": chapter_index,
+                    "char_offset": char_offset,
+                    "page_index": page_index,
+                    "percent": percent,
+                },
+            )
+            .returning(UserReadingProgress)
+        )
+        result = await self.db.execute(stmt)
+        row = result.scalar_one()
         await self.db.commit()
-        await self.db.refresh(row)
         return row

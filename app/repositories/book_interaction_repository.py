@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.book_interaction import BookInteraction
@@ -28,11 +29,21 @@ class BookInteractionRepository:
         return result.scalar_one_or_none()
 
     async def toggle(self, book_id: int, user_id: int, kind: str) -> bool:
-        """切换点赞/收藏状态，返回切换后的状态（True=激活）"""
+        """切换点赞/收藏状态，返回切换后的状态（True=激活）。
+
+        行不存在时用原子插入兜底（ON CONFLICT DO NOTHING），
+        避免并发首次点击时两个请求同时插入触发唯一约束冲突 500。
+        """
         row = await self.get(book_id, user_id)
         if row is None:
-            row = BookInteraction(book_id=book_id, user_id=user_id)
-            self.db.add(row)
+            stmt = (
+                pg_insert(BookInteraction)
+                .values(book_id=book_id, user_id=user_id)
+                .on_conflict_do_nothing(index_elements=["user_id", "book_id"])
+            )
+            await self.db.execute(stmt)
+            await self.db.commit()
+            row = await self.get(book_id, user_id)
         field, ts_field = _KIND_FIELD[kind]
         active = not getattr(row, field)
         setattr(row, field, active)

@@ -1,6 +1,7 @@
 """生词本数据访问层"""
 
 from sqlalchemy import delete, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user_vocabulary import UserVocabulary
@@ -34,18 +35,28 @@ class VocabularyRepository:
         self, user_id: int, book_id: int, word: str,
         chapter_index: int, context_sentence: str | None,
     ) -> UserVocabulary:
-        """收录生词（词已归一化为小写）"""
-        row = UserVocabulary(
-            user_id=user_id,
-            book_id=book_id,
-            word=word,
-            chapter_index=chapter_index,
-            context_sentence=context_sentence,
+        """收录生词（词已归一化为小写）。
+
+        原子插入：并发重复收录时唯一约束兜底，冲突则返回已有条目（幂等）。
+        """
+        stmt = (
+            pg_insert(UserVocabulary)
+            .values(
+                user_id=user_id,
+                book_id=book_id,
+                word=word,
+                chapter_index=chapter_index,
+                context_sentence=context_sentence,
+            )
+            .on_conflict_do_nothing(index_elements=["user_id", "word"])
+            .returning(UserVocabulary)
         )
-        self.db.add(row)
+        result = await self.db.execute(stmt)
+        row = result.scalar_one_or_none()
         await self.db.commit()
-        await self.db.refresh(row)
-        return row
+        if row is not None:
+            return row
+        return await self.get_by_word(user_id, word)
 
     async def remove(self, user_id: int, word_id: int) -> int:
         """删除生词，返回删除行数（0 表示不存在）"""

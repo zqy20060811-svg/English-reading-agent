@@ -1,6 +1,7 @@
 """书签数据访问层"""
 
 from sqlalchemy import delete, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user_bookmark import UserBookmark
@@ -39,17 +40,27 @@ class BookmarkRepository:
         self, user_id: int, book_id: int, chapter_index: int,
         page_index: int, excerpt: str,
     ) -> UserBookmark:
-        row = UserBookmark(
-            user_id=user_id,
-            book_id=book_id,
-            chapter_index=chapter_index,
-            page_index=page_index,
-            excerpt=excerpt,
+        """添加书签（原子插入：并发重复添加由唯一约束兜底，冲突返回已有条目）"""
+        stmt = (
+            pg_insert(UserBookmark)
+            .values(
+                user_id=user_id,
+                book_id=book_id,
+                chapter_index=chapter_index,
+                page_index=page_index,
+                excerpt=excerpt,
+            )
+            .on_conflict_do_nothing(
+                index_elements=["user_id", "book_id", "chapter_index", "page_index"]
+            )
+            .returning(UserBookmark)
         )
-        self.db.add(row)
+        result = await self.db.execute(stmt)
+        row = result.scalar_one_or_none()
         await self.db.commit()
-        await self.db.refresh(row)
-        return row
+        if row is not None:
+            return row
+        return await self.get_by_position(user_id, book_id, chapter_index, page_index)
 
     async def remove(self, user_id: int, bookmark_id: int) -> int:
         """删除书签，返回删除行数（0 表示不存在）"""
