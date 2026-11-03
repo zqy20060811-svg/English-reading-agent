@@ -9,6 +9,17 @@ from app.core.security import hash_password
 from app.models.user import User
 from app.schemas.profile import PasswordChangeRequest, UserSettingsUpdateRequest
 from app.services.profile_service import ProfileService
+from app.services.user_service import UserService
+
+
+@pytest.fixture(autouse=True)
+def _mock_token_revocation(monkeypatch):
+    """改密成功路径会吊销全部 token，单测中打桩避免真实 Redis 依赖"""
+
+    async def fake_revoke(self, user_id):
+        return None
+
+    monkeypatch.setattr(UserService, "revoke_user_tokens", fake_revoke)
 
 
 class FakeProfileRepo:

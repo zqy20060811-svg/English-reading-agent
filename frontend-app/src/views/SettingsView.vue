@@ -34,7 +34,9 @@ onMounted(async () => {
 
 async function changePassword() {
   if (!oldPwd.value || !newPwd.value) { toast('请填写完整'); return }
-  if (newPwd.value.length < 6) { toast('新密码至少 6 位'); return }
+  if (newPwd.value.length < 8 || !/[A-Za-z]/.test(newPwd.value) || !/\d/.test(newPwd.value)) {
+    toast('新密码至少 8 位，且需同时包含字母和数字'); return
+  }
   if (newPwd.value !== confirmPwd.value) { toast('两次输入的新密码不一致'); return }
   changing.value = true
   try {
@@ -77,7 +79,7 @@ async function saveLang() {
       <div class="mt-4 flex flex-col gap-3">
         <input v-model="oldPwd" type="password" placeholder="当前密码"
           class="px-4 py-2.5 rounded-xl bg-neutral-50 border border-neutral-200 outline-none text-sm focus:border-accent-500" />
-        <input v-model="newPwd" type="password" placeholder="新密码（至少 6 位）"
+        <input v-model="newPwd" type="password" placeholder="新密码（至少 8 位，含字母和数字）"
           class="px-4 py-2.5 rounded-xl bg-neutral-50 border border-neutral-200 outline-none text-sm focus:border-accent-500" />
         <input v-model="confirmPwd" type="password" placeholder="确认新密码"
           class="px-4 py-2.5 rounded-xl bg-neutral-50 border border-neutral-200 outline-none text-sm focus:border-accent-500" />

@@ -12,6 +12,7 @@ from app.schemas.profile import (
     PasswordChangeRequest,
     UserSettingsUpdateRequest,
 )
+from app.services.user_service import UserService
 
 
 class ProfileService:
@@ -43,13 +44,15 @@ class ProfileService:
         ]
 
     async def change_password(self, user: User, req: PasswordChangeRequest) -> None:
-        """校验旧密码后更新；新旧相同视为无效请求"""
+        """校验旧密码后更新；成功后吊销该用户全部 token，强制重新登录"""
         if not verify_password(req.old_password, user.hashed_password):
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "旧密码不正确")
         if req.old_password == req.new_password:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "新密码不能与旧密码相同")
         user.hashed_password = hash_password(req.new_password)
         await self.db.commit()
+        # 改密后旧 access/refresh token 全部失效，防止密码泄露后仍可继续访问
+        await UserService(self.db).revoke_user_tokens(user.id)
 
     async def get_settings(self, user_id: int) -> str:
         """读取偏好；未设置过返回默认目标语言"""

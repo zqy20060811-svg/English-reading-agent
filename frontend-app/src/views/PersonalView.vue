@@ -11,18 +11,60 @@ const router = useRouter()
 const loading = ref(true)
 const stats = ref(null)   // { read_books, liked_count, favorite_count, translation_count, translation_chars, level }
 const history = ref([])   // 最近阅读
+const me = ref(null)      // 当前用户信息（含 email_verified）
+
+// 邮箱验证（开发环境验证码打印到后端控制台）
+const verifyCode = ref('')
+const sending = ref(false)
+const verifying = ref(false)
+const cooldown = ref(0)
 
 onMounted(async () => {
   try {
-    const [s, h] = await Promise.all([api('/me/stats'), api('/me/history?limit=10')])
+    const [s, h, u] = await Promise.all([api('/me/stats'), api('/me/history?limit=10'), api('/me')])
     stats.value = s
     history.value = h
+    me.value = u
   } catch (err) {
     toast('个人中心加载失败：' + err.message)
   } finally {
     loading.value = false
   }
 })
+
+async function sendCode() {
+  sending.value = true
+  try {
+    await api('/auth/send-verification', { method: 'POST', body: { email: me.value.email } })
+    toast('验证码已发送（开发环境见后端控制台）', 'success')
+    cooldown.value = 60
+    const timer = setInterval(() => {
+      cooldown.value--
+      if (cooldown.value <= 0) clearInterval(timer)
+    }, 1000)
+  } catch (err) {
+    toast('发送失败：' + err.message)
+  } finally {
+    sending.value = false
+  }
+}
+
+async function doVerify() {
+  if (verifyCode.value.trim().length !== 6) { toast('请输入 6 位验证码'); return }
+  verifying.value = true
+  try {
+    await api('/auth/verify-email', {
+      method: 'POST',
+      body: { email: me.value.email, code: verifyCode.value.trim() },
+    })
+    me.value.email_verified = true
+    toast('邮箱验证成功', 'success')
+  } catch (err) {
+    toast('验证失败：' + err.message)
+  } finally {
+    verifying.value = false
+  }
+}
 
 const statCards = () => [
   { icon: 'fa-book', label: '读过的书', value: stats.value.read_books },
@@ -59,6 +101,23 @@ function fmtTime(iso) {
       <button @click="router.push({ name: 'settings' })"
         class="ml-auto px-4 py-2 rounded-full bg-white border border-neutral-200 text-xs font-medium text-neutral-600 hover:border-accent-400 hover:text-accent-600 transition">
         <i class="fa fa-cog mr-1.5"></i>设置
+      </button>
+    </div>
+
+    <!-- 邮箱未验证提示条 -->
+    <div v-if="me && !me.email_verified"
+      class="mt-4 rounded-2xl bg-amber-50 border border-amber-200 p-4 flex flex-wrap items-center gap-3">
+      <i class="fa fa-exclamation-triangle text-amber-500"></i>
+      <span class="text-xs text-amber-700">邮箱 <b>{{ me.email }}</b> 尚未验证，验证后可保障账号安全</span>
+      <input v-model="verifyCode" maxlength="6" placeholder="6 位验证码"
+        class="px-3 py-1.5 rounded-lg bg-white border border-amber-200 outline-none text-xs w-28 focus:border-amber-400" />
+      <button :disabled="sending || cooldown > 0" @click="sendCode"
+        class="px-3 py-1.5 rounded-full text-xs font-semibold border border-amber-300 text-amber-600 hover:bg-amber-100 transition disabled:opacity-50">
+        {{ cooldown > 0 ? `重发(${cooldown}s)` : '发送验证码' }}
+      </button>
+      <button :disabled="verifying" @click="doVerify"
+        class="px-3 py-1.5 rounded-full bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 transition disabled:opacity-50">
+        {{ verifying ? '验证中...' : '验证' }}
       </button>
     </div>
 

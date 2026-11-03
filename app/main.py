@@ -2,7 +2,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
 
 from app.api.routes.ask import router as ask_router
 from app.api.routes.auth import router as auth_router
@@ -11,41 +10,19 @@ from app.api.routes.level_test import router as level_test_router
 from app.api.routes.me import router as me_router
 from app.api.routes.reading import router as reading_router
 from app.api.routes.translate import router as translate_router
-from app.db.database import Base, engine
-from app.models import (  # noqa: F401 确保模型注册到 metadata
-    book,
-    book_chapter,
-    book_chunk,
-    book_event,
-    book_interaction,
-    level_test_result,
-    reading_progress,
-    translation_record,
-    user,
-    user_settings,
-)
+from app.core.error_handlers import register_error_handlers
 from app.schemas.user import UserOut
 from app.services.user_service import get_current_user
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 简化处理：启动时先启用 pgvector 扩展与全文索引再自动建表；生产环境建议改用 Alembic 迁移
-    async with engine.begin() as conn:
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        await conn.execute(text("ALTER TABLE IF EXISTS books ADD COLUMN IF NOT EXISTS cover_url VARCHAR(512)"))
-        await conn.run_sync(Base.metadata.create_all)
-        # 全文检索（ts_rank）关键词路的表达式 GIN 索引（表达式必须与查询中的完全一致才能命中索引）
-        await conn.execute(
-            text(
-                "CREATE INDEX IF NOT EXISTS ix_book_chunks_fts "
-                "ON book_chunks USING gin (to_tsvector('english', chunk_text))"
-            )
-        )
+    # 建表与索引统一由 Alembic 迁移管理（alembic upgrade head），启动时不再做 DDL
     yield
 
 
 app = FastAPI(title="English Reading Agent", lifespan=lifespan)
+register_error_handlers(app)  # 全局统一错误响应 {detail, code}
 
 # 允许本地前端（任意端口）跨域访问；前端正式部署后再收紧来源
 app.add_middleware(

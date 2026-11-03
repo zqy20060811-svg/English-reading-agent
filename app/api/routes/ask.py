@@ -1,8 +1,11 @@
 from fastapi import APIRouter, Depends
 
+from app.core.config import get_settings
+from app.core.redis import get_redis
 from app.schemas.ask import AskReadingRequest, AskRequest, AskResponse
 from app.services.book_service import BookService, get_book_service
 from app.services.llm_service import LLMService, get_llm_service
+from app.services.quota_service import check_daily_quota
 from app.services.retrieval_service import RetrievalService, get_retrieval_service
 from app.services.user_service import get_current_user
 
@@ -37,7 +40,9 @@ async def ask_reading(
     - 检索范围两阶段：优先当前章节；章内证据不足（命中少或距离偏大）时
       扩展到整本书补充证据，响应中 scope 标注实际范围
     - 全程零命中时直接拒答，不再回退整章原文——与「证据不足不编造」定位一致
+    - 每用户每日有基础配额（默认 50 次），超出返回 429
     """
+    await check_daily_quota(current_user.id, "AI 问答", get_settings().QUOTA_ASK_DAILY, get_redis())
     book, chapter = await book_service.get_chapter(req.book_id, req.chapter_index)
     result = await retrieval.retrieve_with_scope(
         req.question, book_id=req.book_id, chapter_id=chapter.id,

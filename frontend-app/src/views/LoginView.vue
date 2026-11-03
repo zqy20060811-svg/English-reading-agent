@@ -2,7 +2,7 @@
 // 登录 / 注册（沿用现有接口与交互，按新设计语言重绘）
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { api, TOKEN_KEY, USER_KEY } from '../api/client'
+import { api, TOKEN_KEY, REFRESH_KEY, USER_KEY } from '../api/client'
 import { toast } from '../store'
 
 const router = useRouter()
@@ -31,6 +31,7 @@ async function doLogin() {
       body: { username: loginForm.value.username.trim(), password: loginForm.value.password },
     })
     localStorage.setItem(TOKEN_KEY, token.access_token)
+    localStorage.setItem(REFRESH_KEY, token.refresh_token)
     localStorage.setItem(USER_KEY, loginForm.value.username.trim())
     router.replace('/')
   } catch (err) {
@@ -137,7 +138,7 @@ async function doRegister() {
           </div>
           <div>
             <label class="text-xs font-semibold text-soft mb-1.5 block">密码</label>
-            <input v-model="registerForm.password" type="password" required placeholder="至少 6 位"
+            <input v-model="registerForm.password" type="password" required placeholder="至少 8 位，包含字母和数字"
               class="w-full px-4 py-3 rounded-2xl bg-neutral-50 border border-neutral-200 outline-none text-sm focus:border-accent-500 focus:bg-white transition" />
           </div>
           <button type="submit" :disabled="loading"

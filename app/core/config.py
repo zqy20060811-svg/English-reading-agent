@@ -11,12 +11,30 @@ class Settings(BaseSettings):
     REDIS_URL: str
     JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRE_MINUTES: int = 1440
+    # Access Token 短时效（分钟），Refresh Token 长时效（天）
+    JWT_ACCESS_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # DeepSeek 大模型配置
     DEEPSEEK_API_KEY: str = ""
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
     DEEPSEEK_MODEL: str = "deepseek-chat"
+
+    # SMTP 邮件配置：留空时验证码走 console 输出（开发环境）
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 465
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+    # 邮箱验证码有效期（秒）
+    EMAIL_CODE_TTL: int = 600
+
+    # 每用户每日基础配额（商业化的计费预留口径）
+    QUOTA_TRANSLATE_DAILY: int = 50
+    QUOTA_ASK_DAILY: int = 50
+    # 登录失败锁定：15 分钟窗口内最多失败次数
+    LOGIN_FAIL_LIMIT: int = 5
+    LOGIN_FAIL_WINDOW_SECONDS: int = 900
 
 
 @lru_cache

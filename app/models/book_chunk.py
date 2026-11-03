@@ -1,4 +1,4 @@
-from sqlalchemy import Column, ForeignKey, Integer, Text, UniqueConstraint
+from sqlalchemy import Column, ForeignKey, Index, Integer, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 from pgvector.sqlalchemy import Vector
 
@@ -13,7 +13,15 @@ class BookChunk(Base):
     """
 
     __tablename__ = "book_chunks"
-    __table_args__ = (UniqueConstraint("chapter_id", "chunk_index"),)
+    __table_args__ = (
+        UniqueConstraint("chapter_id", "chunk_index"),
+        # 全文检索（ts_rank）关键词路的表达式 GIN 索引（表达式必须与查询中的完全一致才能命中索引）
+        Index(
+            "ix_book_chunks_fts",
+            text("to_tsvector('english', chunk_text)"),
+            postgresql_using="gin",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     book_id: Mapped[int] = mapped_column(ForeignKey("books.id"), index=True)  # 冗余书籍 ID，便于按书过滤
