@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
 
+import logging
+
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -21,6 +23,16 @@ from app.services.user_service import get_current_user
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 建表与索引统一由 Alembic 迁移管理（alembic upgrade head），启动时不再做 DDL
+    # 入库任务启动恢复：上次进程退出时 running 的任务标记为失败（可重试），
+    # 未执行的 pending 任务重新调度（任务领取是原子的，重复调度安全）
+    try:
+        from app.services.ingest_service import recover_interrupted_tasks, schedule_task
+
+        pending_ids = await recover_interrupted_tasks()
+        for tid in pending_ids:
+            schedule_task(tid)
+    except Exception as exc:  # 数据库不可用时服务仍需能启动
+        logging.getLogger("app").warning(f"入库任务启动恢复失败（数据库不可用？）：{exc}")
     yield
 
 

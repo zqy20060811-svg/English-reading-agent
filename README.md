@@ -115,8 +115,8 @@ cd frontend-app && npm install && npm run dev              # 前端开发服务�
 | GET | /admin/overview | 概览：用户数 / 书籍数 / 进行中任务 / 今日 AI 调用 |
 | GET/PATCH | /admin/users | 用户列表（搜索分页）/ 设管理员、禁用（禁用即吊销全部 token） |
 | GET/PATCH | /admin/books | 书籍列表（含下架）/ 上架 / 下架（下架对普通用户立即不可见） |
-| GET/POST | /admin/ingest/tasks | 入库任务列表 / 新建任务（爬取→入库→切章→分块→可选向量化，后台异步执行） |
-| POST | /admin/ingest/tasks/{id}/retry | 失败任务重试 |
+| GET/POST | /admin/ingest/tasks | 入库任务列表 / 新建任务（爬取→入库→切章→分块→可选向量化，后台异步执行；同书防重、书已在库拒绝重复入库） |
+| POST | /admin/ingest/tasks/{id}/retry | 失败任务重试（任务领取原子化；服务重启自动把中断任务标记为失败可重试，running 超 6 小时兜底超时） |
 | GET | /admin/stats/ai | AI 调用次数 / token 用量 / 成本估算（按场景与按天） |
 
 首个管理员：`python -m app.scripts.set_admin <用户名>`。
