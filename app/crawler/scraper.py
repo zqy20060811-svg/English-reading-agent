@@ -172,3 +172,27 @@ def crawl_books(
 
     print(f"完成：成功 {len(results)} 本，失败 {len(failed)} 本，索引已写入 {index_path}")
     return results
+
+
+def crawl_one(
+    gutenberg_id: int,
+    output_dir: Path = DEFAULT_OUTPUT_DIR,
+) -> dict:
+    """按古登堡书号爬取单本书（须在 BOOK_CATALOG 中登记元数据），返回书籍信息字典。
+
+    供后台入库任务使用：只处理指定书籍，成功/失败直接抛异常交给任务状态记录。
+    """
+    meta = next((b for b in BOOK_CATALOG if b.gutenberg_id == gutenberg_id), None)
+    if meta is None:
+        raise ValueError(f"书号 {gutenberg_id} 不在书单目录中，请先在 books_catalog.py 登记元数据")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    session = build_session()
+    url = TXT_URL_TEMPLATE.format(book_id=gutenberg_id)
+    raw = download_text(session, url)
+    content = clean_gutenberg_text(raw)
+    if len(content) < 1000:
+        raise RuntimeError("清洗后正文过短，疑似抓取异常")
+    info = save_book(meta, content, output_dir)
+    print(f"爬取成功：{info['title']}（{info['word_count']} 词）")
+    return info

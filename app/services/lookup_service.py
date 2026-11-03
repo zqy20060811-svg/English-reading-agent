@@ -11,12 +11,15 @@ from typing import Any
 from fastapi import Depends, HTTPException, status
 from fastapi.concurrency import run_in_threadpool
 from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.redis import get_redis
+from app.db.database import get_db
 from app.schemas.study import WordLookupResponse
 from app.services.llm_service import LLMService
 from app.services.quota_service import check_daily_quota
+from app.services.usage_service import record_llm_usage
 
 # 查词结果缓存 7 天（词典内容稳定，长缓存摊薄模型成本）
 LOOKUP_CACHE_TTL_SECONDS = 7 * 24 * 3600
@@ -64,18 +67,19 @@ def _parse_lookup_json(raw: str, word: str) -> WordLookupResponse:
     )
 
 
-def _deepseek_lookup(word: str) -> str:
-    """DeepSeek 查词（同步阻塞，由调用方放入线程池）"""
+def _deepseek_lookup(llm: LLMService, word: str) -> str:
+    """DeepSeek 查词（同步阻塞，由调用方放入线程池）；token 用量记入 llm.usage_log"""
     payload = LLMService._build_payload(LOOKUP_SYSTEM_PROMPT, word)
     payload["temperature"] = 0.2
-    return LLMService._request_chat(payload)
+    return llm._request_chat(payload, "查词")
 
 
 class LookupService:
     """点词查义服务"""
 
-    def __init__(self, redis: Redis):
+    def __init__(self, redis: Redis, db: AsyncSession):
         self.redis = redis
+        self.db = db  # 用量落库用（旁路统计）
 
     async def lookup(self, user_id: int, word: str) -> WordLookupResponse:
         word = normalize_lookup_word(word)
@@ -90,13 +94,19 @@ class LookupService:
 
         # 2) 未命中：先占配额再调模型（失败不缓存，避免污染）
         await check_daily_quota(user_id, "查词", get_settings().QUOTA_LOOKUP_DAILY, self.redis)
-        raw = await run_in_threadpool(_deepseek_lookup, word)
+        llm = LLMService()
+        raw = await run_in_threadpool(_deepseek_lookup, llm, word)
         result = _parse_lookup_json(raw, word)
 
         await self.redis.set(cache_key, raw, ex=LOOKUP_CACHE_TTL_SECONDS)
+        # LLM token 用量落库（旁路：失败不影响查词主流程）
+        await record_llm_usage(self.db, user_id, llm)
         return result
 
 
-def get_lookup_service(redis: Redis = Depends(get_redis)) -> LookupService:
-    """FastAPI 依赖注入：共享单例 Redis 客户端"""
-    return LookupService(redis)
+def get_lookup_service(
+    redis: Redis = Depends(get_redis),
+    db: AsyncSession = Depends(get_db),
+) -> LookupService:
+    """FastAPI 依赖注入：共享单例 Redis 客户端 + 请求级数据库会话"""
+    return LookupService(redis, db)

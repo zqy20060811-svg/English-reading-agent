@@ -53,6 +53,7 @@ class UserOut(BaseModel):
     username: str
     email: EmailStr
     email_verified: bool
+    is_admin: bool = False  # 前端据此显示「管理后台」入口
     created_at: datetime
 
 

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.database import Base
@@ -22,6 +22,8 @@ class Book(Base):
     language: Mapped[str] = mapped_column(String(10), default="en")
     source_url: Mapped[str] = mapped_column(String(512))
     word_count: Mapped[int] = mapped_column(Integer, default=0)
+    # 上下架状态：下架后普通用户书库/搜索/章节接口不可见（管理员后台可见可恢复）
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

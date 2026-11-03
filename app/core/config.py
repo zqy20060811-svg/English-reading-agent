@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     DEEPSEEK_API_KEY: str = ""
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
     DEEPSEEK_MODEL: str = "deepseek-chat"
+    # DeepSeek 定价（美元 / 百万 tokens），供后台成本统计估算
+    LLM_INPUT_PRICE_PER_M: float = 0.27
+    LLM_OUTPUT_PRICE_PER_M: float = 1.10
 
     # SMTP 邮件配置：留空时验证码走 console 输出（开发环境）
     SMTP_HOST: str = ""

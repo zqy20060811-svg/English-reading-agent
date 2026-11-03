@@ -108,6 +108,19 @@ cd frontend-app && npm install && npm run dev              # 前端开发服务�
 
 以上除注册/登录外均需 `Authorization: Bearer <token>`。
 
+### 管理后台（`/admin`，仅 `is_admin` 用户，前端侧边栏对应入口）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | /admin/overview | 概览：用户数 / 书籍数 / 进行中任务 / 今日 AI 调用 |
+| GET/PATCH | /admin/users | 用户列表（搜索分页）/ 设管理员、禁用（禁用即吊销全部 token） |
+| GET/PATCH | /admin/books | 书籍列表（含下架）/ 上架 / 下架（下架对普通用户立即不可见） |
+| GET/POST | /admin/ingest/tasks | 入库任务列表 / 新建任务（爬取→入库→切章→分块→可选向量化，后台异步执行） |
+| POST | /admin/ingest/tasks/{id}/retry | 失败任务重试 |
+| GET | /admin/stats/ai | AI 调用次数 / token 用量 / 成本估算（按场景与按天） |
+
+首个管理员：`python -m app.scripts.set_admin <用户名>`。
+
 ## 检索方案（RAG）
 
 - 双路召回：pgvector 余弦相似度（BGE-M3）+ PostgreSQL `ts_rank` 全文检索（OR 词元组合）
@@ -118,10 +131,11 @@ cd frontend-app && npm install && npm run dev              # 前端开发服务�
 ## 测试
 
 ```bash
-pytest
+pytest                 # 后端：单元 + 稳定性 + 管理后台（外部依赖缺失自动 skip）
+cd frontend-app && npm run test   # 前端：vitest 单元测试（错误归一化 / 点词提取 / 分档 / 三态组件）
 ```
 
-单元测试不依赖外部环境；检索基准测试在数据库可用时自动运行（缺失环境自动 skip）。
+后端测试不依赖外部环境；检索基准与数据库稳定性测试在数据库可用时自动运行。前端构建同时执行 TypeScript 严格检查：`npm run build`。
 
 ## 已知限制
 

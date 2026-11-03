@@ -53,12 +53,15 @@ class LLMService:
 
     def __init__(self):
         self._rewrite_cache: dict[str, str] = {}  # 进程内改写缓存：原问题 -> 英文检索查询
+        # 本次请求的 token 用量流水（每次成功调用追加一条），由路由层持久化到 llm_usage_log
+        self.usage_log: list[dict] = []
 
     async def ask(self, question: str) -> str:
         """调用 DeepSeek chat 接口回答问题。"""
         return await run_in_threadpool(
             self._request_chat,
             self._build_payload(SYSTEM_PROMPT, question),
+            "AI 问答",
         )
 
     async def rewrite_query(self, question: str) -> str:
@@ -74,7 +77,7 @@ class LLMService:
             payload = self._build_payload(REWRITE_SYSTEM_PROMPT, question)
             payload["temperature"] = 0.2
             payload["max_tokens"] = 80
-            rewritten = await run_in_threadpool(self._request_chat, payload)
+            rewritten = await run_in_threadpool(self._request_chat, payload, "查询改写")
             rewritten = rewritten.strip().strip('"')[:200]
             if not rewritten:
                 raise ValueError("empty rewrite")
@@ -94,6 +97,7 @@ class LLMService:
         return await run_in_threadpool(
             self._request_chat,
             self._build_payload(READING_SYSTEM_PROMPT, user_content),
+            "AI 问答",
         )
 
     @staticmethod
@@ -112,8 +116,7 @@ class LLMService:
             ],
         }
 
-    @staticmethod
-    def _request_chat(payload: dict) -> str:
+    def _request_chat(self, payload: dict, scene: str = "AI 问答") -> str:
         settings = get_settings()
         try:
             resp = requests.post(
@@ -130,6 +133,14 @@ class LLMService:
             answer = data["choices"][0]["message"]["content"].strip()
             if not answer:
                 raise HTTPException(status.HTTP_502_BAD_GATEWAY, "大模型返回内容为空")
+            # 记录 token 用量（DeepSeek 返回 usage 字段），供后台成本统计
+            usage = data.get("usage") or {}
+            self.usage_log.append({
+                "scene": scene,
+                "model": payload.get("model") or settings.DEEPSEEK_MODEL,
+                "prompt_tokens": int(usage.get("prompt_tokens") or 0),
+                "completion_tokens": int(usage.get("completion_tokens") or 0),
+            })
             return answer
         except HTTPException:
             raise

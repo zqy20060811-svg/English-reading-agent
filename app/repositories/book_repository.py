@@ -19,9 +19,12 @@ class BookRepository:
         )
         return result.scalar_one_or_none()
 
-    async def list_all(self, limit: int = 100) -> list[Book]:
-        """全部书籍列表（按入库顺序），供前端书架使用"""
-        result = await self.db.execute(select(Book).order_by(Book.id).limit(limit))
+    async def list_all(self, limit: int = 100, only_active: bool = True) -> list[Book]:
+        """全部书籍列表（按入库顺序）；only_active 过滤已下架书籍"""
+        stmt = select(Book).order_by(Book.id).limit(limit)
+        if only_active:
+            stmt = stmt.where(Book.is_active == True)  # noqa: E712
+        result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
     async def list_by_ids(self, book_ids: list[int]) -> list[Book]:
@@ -31,10 +34,10 @@ class BookRepository:
         result = await self.db.execute(select(Book).where(Book.id.in_(book_ids)))
         return list(result.scalars().all())
 
-    async def search_by_title(self, title: str) -> list[Book]:
+    async def search_by_title(self, title: str, only_active: bool = True) -> list[Book]:
         """按书名模糊查询（大小写不敏感），完全匹配的排在最前。"""
         pattern = f"%{title}%"
-        result = await self.db.execute(
+        stmt = (
             select(Book)
             .where(Book.title.ilike(pattern))
             # 完全匹配（忽略大小写）优先，其余按书名排序
@@ -43,6 +46,9 @@ class BookRepository:
                 Book.title,
             )
         )
+        if only_active:
+            stmt = stmt.where(Book.is_active == True)  # noqa: E712
+        result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
     async def create(self, book: Book) -> Book:

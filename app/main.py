@@ -4,6 +4,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.ask import router as ask_router
+from app.api.routes.admin import router as admin_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.book import router as book_router
 from app.api.routes.bookmark import router as bookmark_router
@@ -44,6 +45,7 @@ app.include_router(translate_router)
 app.include_router(me_router)
 app.include_router(vocabulary_router)
 app.include_router(bookmark_router)
+app.include_router(admin_router)
 
 
 @app.get("/me", response_model=UserOut, tags=["认证"])

@@ -54,6 +54,9 @@ class UserService:
             await redis.incr(fail_key)
             await redis.expire(fail_key, settings.LOGIN_FAIL_WINDOW_SECONDS)
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "用户名或密码错误")
+        # 被管理员禁用的账号拒绝登录（不计入失败锁定计数）
+        if user.is_disabled:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "该账号已被禁用，请联系管理员")
         await redis.delete(fail_key)  # 登录成功清零失败计数
         repo = TokenRepository(redis)
         access_token = create_access_token(user.id)
@@ -160,4 +163,14 @@ async def get_current_user(
     user = await UserRepository(db).get_by_id(user_id)
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "用户不存在")
+    # 每次请求校验禁用状态：管理员禁用后已签发的 token 也立即失效
+    if user.is_disabled:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "该账号已被禁用，请联系管理员")
     return user
+
+
+async def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """依赖项：要求当前用户为管理员，否则 403"""
+    if not current_user.is_admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "需要管理员权限")
+    return current_user

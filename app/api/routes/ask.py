@@ -1,12 +1,15 @@
 from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.redis import get_redis
+from app.db.database import get_db
 from app.schemas.ask import AskReadingRequest, AskRequest, AskResponse
 from app.services.book_service import BookService, get_book_service
 from app.services.llm_service import LLMService, get_llm_service
 from app.services.quota_service import check_daily_quota
 from app.services.retrieval_service import RetrievalService, get_retrieval_service
+from app.services.usage_service import record_llm_usage
 from app.services.user_service import get_current_user
 
 router = APIRouter(prefix="/ask", tags=["AI 问答"])
@@ -19,10 +22,12 @@ READING_TOP_K = 5
 async def ask(
     req: AskRequest,
     service: LLMService = Depends(get_llm_service),
+    db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),  # 需登录：校验 Bearer token
 ):
     """向 DeepSeek 大模型提问（需登录后携带 Bearer token）"""
     answer = await service.ask(req.question)
+    await record_llm_usage(db, current_user.id, service)  # token 用量落库（旁路）
     return AskResponse(answer=answer)
 
 
@@ -32,6 +37,7 @@ async def ask_reading(
     llm: LLMService = Depends(get_llm_service),
     book_service: BookService = Depends(get_book_service),
     retrieval: RetrievalService = Depends(get_retrieval_service),
+    db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),  # 需登录：校验 Bearer token
 ):
     """基于 RAG 向量检索向大模型提问（需登录后携带 Bearer token）。
@@ -57,4 +63,5 @@ async def ask_reading(
             scope="none",
         )
     answer = await llm.ask_with_context(req.question, result.context)
+    await record_llm_usage(db, current_user.id, llm)  # 问答+改写的 token 用量落库（旁路）
     return AskResponse(answer=answer, scope=result.scope)

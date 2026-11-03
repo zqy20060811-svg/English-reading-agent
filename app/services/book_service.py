@@ -36,6 +36,8 @@ class BookService:
         book = await self.repo.get_by_id(book_id)
         if book is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, f"书籍 {book_id} 不存在")
+        if not book.is_active:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"书籍「{book.title}」已下架")
         chapters = await self.chapter_repo.list_by_book(book_id)
         if not chapters:
             raise HTTPException(
@@ -49,6 +51,8 @@ class BookService:
         book = await self.repo.get_by_id(book_id)
         if book is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, f"书籍 {book_id} 不存在")
+        if not book.is_active:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"书籍「{book.title}」已下架")
         chapter = await self.chapter_repo.get_by_book_and_index(book_id, chapter_index)
         if chapter is None:
             raise HTTPException(
@@ -57,13 +61,13 @@ class BookService:
             )
         return book, chapter
 
-    async def list_all(self, limit: int = 100) -> list[Book]:
-        """全部书籍列表（按入库顺序），供前端书架使用"""
-        return await self.repo.list_all(limit)
+    async def list_all(self, limit: int = 100, only_active: bool = True) -> list[Book]:
+        """书籍列表（按入库顺序），普通用户只看上架书籍；管理员传 only_active=False 查全量"""
+        return await self.repo.list_all(limit, only_active=only_active)
 
-    async def search_by_title(self, title: str) -> list[Book]:
+    async def search_by_title(self, title: str, only_active: bool = True) -> list[Book]:
         """按书名查询书籍简介，未命中时返回 404。"""
-        books = await self.repo.search_by_title(title.strip())
+        books = await self.repo.search_by_title(title.strip(), only_active=only_active)
         if not books:
             raise HTTPException(status.HTTP_404_NOT_FOUND, f"未找到书名包含“{title}”的书籍")
         return books

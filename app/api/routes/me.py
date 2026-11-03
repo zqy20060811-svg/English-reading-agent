@@ -11,10 +11,17 @@ from app.schemas.profile import (
     UserSettingsUpdateRequest,
     UserStatsOut,
 )
+from app.schemas.user import UserOut
 from app.services.profile_service import ProfileService
 from app.services.user_service import get_current_user
 
 router = APIRouter(prefix="/me", tags=["个人中心"])
+
+
+@router.get("", response_model=UserOut)
+async def my_profile(current_user: User = Depends(get_current_user)):
+    """当前登录用户信息（前端据此显示「管理后台」入口等）"""
+    return current_user
 
 
 async def get_profile_service(

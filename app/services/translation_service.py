@@ -17,6 +17,7 @@ from app.models.translation_record import TranslationRecord
 from app.repositories.translation_repository import TranslationRepository
 from app.schemas.translate import TranslateRequest, TranslateResponse
 from app.services.llm_service import LLMService, get_llm_service
+from app.services.usage_service import record_llm_usage
 
 # 翻译系统提示词：只输出译文，自动检测源语言，保留格式
 TRANSLATE_SYSTEM_PROMPT = (
@@ -36,12 +37,13 @@ class TranslateProvider:
     """翻译通道：name 为注册标识，is_premium 标记付费通道"""
 
     name: str
-    translate: Callable[[str, str, str], Awaitable[str]]  # (text, target_lang, source_lang) -> 译文
+    # translate(text, target_lang, source_lang, *, llm) -> 译文；llm 用于 token 用量统计
+    translate: Callable[..., Awaitable[str]]
     is_premium: bool = False
 
 
-def _deepseek_translate(text: str, target_lang: str, source_lang: str) -> str:
-    """DeepSeek 翻译（同步阻塞，由调用方放入线程池）"""
+def _deepseek_translate(llm: LLMService, text: str, target_lang: str, source_lang: str) -> str:
+    """DeepSeek 翻译（同步阻塞，由调用方放入线程池）；token 用量记入 llm.usage_log"""
     user_content = (
         f"Target language: {target_lang}\n"
         f"Source language: {source_lang}\n\n"
@@ -49,11 +51,13 @@ def _deepseek_translate(text: str, target_lang: str, source_lang: str) -> str:
     )
     payload = LLMService._build_payload(TRANSLATE_SYSTEM_PROMPT, user_content)
     payload["temperature"] = 0.2
-    return LLMService._request_chat(payload)
+    return llm._request_chat(payload, "翻译")
 
 
-async def _deepseek_translate_async(text: str, target_lang: str, source_lang: str) -> str:
-    return await run_in_threadpool(_deepseek_translate, text, target_lang, source_lang)
+async def _deepseek_translate_async(
+    text: str, target_lang: str, source_lang: str, llm: LLMService
+) -> str:
+    return await run_in_threadpool(_deepseek_translate, llm, text, target_lang, source_lang)
 
 
 # 通道注册表：后续接入其他翻译 API（如百度翻译、火山引擎等）在此登记即可
@@ -87,7 +91,8 @@ class TranslationService:
                 status.HTTP_402_PAYMENT_REQUIRED, f"付费翻译通道 {provider.name} 暂未开放"
             )
 
-        translation = await provider.translate(req.text, req.target_lang, req.source_lang)
+        # llm 由服务实例注入（每请求一个），token 用量随之记入 llm.usage_log
+        translation = await provider.translate(req.text, req.target_lang, req.source_lang, llm=self.llm)
 
         await self.repo.save(
             TranslationRecord(
@@ -98,6 +103,8 @@ class TranslationService:
                 char_count=len(req.text),
             )
         )
+        # LLM token 用量落库（旁路：失败不影响翻译主流程）
+        await record_llm_usage(getattr(self.repo, "db", None), user_id, self.llm)
         return TranslateResponse(
             translation=translation, provider=provider.name, char_count=len(req.text)
         )
