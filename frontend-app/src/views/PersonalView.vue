@@ -111,16 +111,30 @@ function fmtTime(iso: string): string {
       <div>
         <h2 class="text-2xl font-extrabold flex items-center gap-2">
           {{ store.username }}
-          <span class="text-xs font-semibold px-2.5 py-1 rounded-full text-accent-600 bg-accent-50 border border-accent-100">
-            {{ stats?.level ? stats.level + ' ' + (LEVEL_NAMES[stats.level] || '') : '未测试' }}
-          </span>
+          <!-- 英语等级徽章：未测试时醒目引导，点击进入水平测试（已测试可重测） -->
+          <button @click="router.push({ name: 'test' })"
+            :title="stats?.level ? '点击重新测试英语水平' : '点击开始英语水平测试'"
+            class="text-xs font-semibold px-2.5 py-1 rounded-full transition"
+            :class="stats?.level
+              ? 'text-accent-600 bg-accent-50 border border-accent-100 hover:bg-accent-100'
+              : 'text-white bg-accent-500 shadow-[0_4px_12px_rgba(255,107,44,.35)] hover:bg-accent-600'">
+            <i v-if="!stats?.level" class="fa fa-pencil mr-1"></i>
+            {{ stats?.level ? stats.level + ' ' + (LEVEL_NAMES[stats.level] || '') : '未测试 · 去测试' }}
+          </button>
         </h2>
         <p class="text-sm text-soft mt-1">坚持阅读，让英语 level up</p>
       </div>
-      <button @click="router.push({ name: 'settings' })"
-        class="ml-auto px-4 py-2 rounded-full bg-white border border-neutral-200 text-xs font-medium text-neutral-600 hover:border-accent-400 hover:text-accent-600 transition">
-        <i class="fa fa-cog mr-1.5"></i>设置
-      </button>
+      <div class="ml-auto flex items-center gap-2">
+        <!-- 管理后台入口：仅管理员可见（桌面侧边栏与移动端「我的」页均可直达） -->
+        <button v-if="store.me?.is_admin" @click="router.push({ name: 'admin' })"
+          class="px-4 py-2 rounded-full bg-ink text-white text-xs font-medium hover:bg-ink-700 transition">
+          <i class="fa fa-shield mr-1.5"></i>管理后台
+        </button>
+        <button @click="router.push({ name: 'settings' })"
+          class="px-4 py-2 rounded-full bg-white border border-neutral-200 text-xs font-medium text-neutral-600 hover:border-accent-400 hover:text-accent-600 transition">
+          <i class="fa fa-cog mr-1.5"></i>设置
+        </button>
+      </div>
     </div>
 
     <!-- 邮箱未验证提示条 -->
