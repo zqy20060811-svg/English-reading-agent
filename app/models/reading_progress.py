@@ -22,6 +22,7 @@ class UserReadingProgress(Base):
     )
     chapter_index: Mapped[int] = mapped_column(Integer, default=1)  # 读到第几章
     char_offset: Mapped[int] = mapped_column(Integer, default=0)  # 章内字符偏移
+    page_index: Mapped[int] = mapped_column(Integer, default=0)  # 章内页码（0 起，前端分页粒度断点）
     percent: Mapped[float] = mapped_column(Float, default=0.0)  # 全书阅读百分比
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

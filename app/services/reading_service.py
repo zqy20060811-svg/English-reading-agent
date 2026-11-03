@@ -37,6 +37,7 @@ class ReadingService:
                 book_id=book_id,
                 chapter_index=1,
                 char_offset=0,
+                page_index=0,
                 percent=0.0,
                 updated_at=datetime.now(timezone.utc),
             )
@@ -62,7 +63,7 @@ class ReadingService:
                 f"字符偏移 {data.char_offset} 超出章节「{chapter.title}」正文长度 {len(chapter.content)}",
             )
         return await self.progress_repo.upsert(
-            user.id, book_id, data.chapter_index, data.char_offset, data.percent
+            user.id, book_id, data.chapter_index, data.char_offset, data.percent, data.page_index
         )
 
 

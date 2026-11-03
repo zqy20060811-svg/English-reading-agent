@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     # 每用户每日基础配额（商业化的计费预留口径）
     QUOTA_TRANSLATE_DAILY: int = 50
     QUOTA_ASK_DAILY: int = 50
+    QUOTA_LOOKUP_DAILY: int = 100
     # 登录失败锁定：15 分钟窗口内最多失败次数
     LOGIN_FAIL_LIMIT: int = 5
     LOGIN_FAIL_WINDOW_SECONDS: int = 900

@@ -21,7 +21,9 @@ from app.models import (  # noqa: F401 确保全部模型注册到 metadata，�
     reading_progress,
     translation_record,
     user,
+    user_bookmark,
     user_settings,
+    user_vocabulary,
 )
 
 config = context.config

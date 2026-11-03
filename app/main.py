@@ -6,10 +6,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes.ask import router as ask_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.book import router as book_router
+from app.api.routes.bookmark import router as bookmark_router
 from app.api.routes.level_test import router as level_test_router
 from app.api.routes.me import router as me_router
 from app.api.routes.reading import router as reading_router
 from app.api.routes.translate import router as translate_router
+from app.api.routes.vocabulary import router as vocabulary_router
 from app.core.error_handlers import register_error_handlers
 from app.schemas.user import UserOut
 from app.services.user_service import get_current_user
@@ -40,6 +42,8 @@ app.include_router(ask_router)
 app.include_router(level_test_router)
 app.include_router(translate_router)
 app.include_router(me_router)
+app.include_router(vocabulary_router)
+app.include_router(bookmark_router)
 
 
 @app.get("/me", response_model=UserOut, tags=["认证"])

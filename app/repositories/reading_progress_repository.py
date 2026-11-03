@@ -27,7 +27,8 @@ class ReadingProgressRepository:
         return list(result.scalars().all())
 
     async def upsert(
-        self, user_id: int, book_id: int, chapter_index: int, char_offset: int, percent: float
+        self, user_id: int, book_id: int, chapter_index: int,
+        char_offset: int, percent: float, page_index: int = 0,
     ) -> UserReadingProgress:
         """每人每书一行，存在则更新，不存在则插入"""
         row = await self.get(user_id, book_id)
@@ -37,12 +38,14 @@ class ReadingProgressRepository:
                 book_id=book_id,
                 chapter_index=chapter_index,
                 char_offset=char_offset,
+                page_index=page_index,
                 percent=percent,
             )
             self.db.add(row)
         else:
             row.chapter_index = chapter_index
             row.char_offset = char_offset
+            row.page_index = page_index
             row.percent = percent
         await self.db.commit()
         await self.db.refresh(row)
