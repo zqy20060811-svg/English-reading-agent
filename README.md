@@ -7,19 +7,23 @@
 | 模块 | 说明 |
 | --- | --- |
 | 认证 | 注册 / 登录，JWT Bearer token 校验，所有业务接口均需登录 |
-| 书架 | 118 本公版英文书（16 个中文分类标签），分类 / 难度筛选与搜索，分页浏览，热门书籍角标，Open Library 真实封面，缺封面用树皮纹理占位 |
+| 书库 | 118 本公版英文书（16 个中文分类标签），分类 / A1-C1 等级筛选与搜索，分页浏览，热门书籍角标，Open Library 真实封面，缺封面用树皮纹理占位 |
+| 书架 | 继续阅读大卡（断点续读直达）、正在读（带进度条）、书单（读过 / 点赞 / 收藏过的书） |
 | 排行榜 | 热度榜单：浏览 / 读完章节 / 点赞 / 收藏加权 + 14 天半衰期衰减 + 贝叶斯收缩，计算 0-100 热度分，Redis 缓存 10 分钟 |
-| 阅读器 | 章节目录、分页排版（固定阅读框 + 键盘翻页）、阅读进度自动保存续读、「我的书单」下拉（只列读过 / 点赞 / 收藏过的书）、点赞 / 收藏按钮 |
+| 阅读器 | 章节目录、分页排版（固定阅读框 + 键盘翻页）、点词查义（LLM 释义卡片 + 一键收录生词）、划句翻译、书签（添加 / 面板 / 跳转）、阅读进度自动保存续读（精确到章内页码）、「我的书单」下拉、点赞 / 收藏按钮 |
+| 生词本 | 收录阅读中的生词（来源书 + 章节 + 上下文例句），跨书按词去重，支持移除 |
 | AI 问答 | `/ask/reading`：基于当前章节的 RAG 检索问答，证据不足时明确拒答不编造 |
 | AI 翻译 | 翻译本页 / 任意语言对互译，多翻译通道与付费通道预留 |
 | 水平测试 | 24 题静态题库（A2~C1 × 词汇/语法/阅读），自动评分定级，按难度推荐书单并保存历史 |
+
+界面移动端优先：<1024px 自动切换底部 Tab 导航（含安全区适配），桌面端为左侧图标侧边栏。
 
 ## 技术栈
 
 - **后端**：FastAPI + SQLAlchemy（async）+ pydantic-settings，同步第三方调用走线程池
 - **数据库**：PostgreSQL 16 + pgvector（向量检索）、内置 ts_rank 全文检索、Redis（token 与热度榜单缓存）
 - **AI**：BGE-M3 本地 embedding（1024 维）、DeepSeek chat API（问答 / 查询改写 / 翻译）
-- **前端**：Vue 3 + Vite + Tailwind CSS（`frontend-app/`），组件化单页应用
+- **前端**：Vue 3 + Vite + Tailwind CSS + TypeScript（strict 模式，`frontend-app/`），组件化单页应用
 - **测试**：pytest（单元测试 + 检索基准）
 
 ## 架构
@@ -28,8 +32,8 @@
 
 ```
 app/
-├── api/routes/        # 路由：auth、book、reading、ask、level_test、translate
-├── services/          # 业务：book、reading、chapter、hotness、level_test、translation、retrieval、llm、user
+├── api/routes/        # 路由：auth、book、reading、ask、level_test、translate、vocabulary、bookmark
+├── services/          # 业务：book、reading、chapter、hotness、level_test、translation、retrieval、llm、user、vocabulary、bookmark、lookup
 ├── repositories/      # 数据访问
 ├── models/            # SQLAlchemy 模型
 ├── schemas/           # Pydantic 请求/响应模型
@@ -38,7 +42,7 @@ app/
 ├── chunking.py        # 递归字符分块（800/100，段落优先）
 ├── embedding.py       # BGE-M3 单例加载
 └── level_bank.py      # 水平测试题库
-frontend-app/           # Vue 3 + Vite + Tailwind 前端（登录、书库、阅读、水平测试、翻译）
+frontend-app/           # Vue 3 + Vite + Tailwind + TS 前端（登录、书库、书架、阅读、生词本、水平测试、翻译）
 tests/                  # pytest 测试与 25 题检索基准
 data/books/             # 爬取的书籍内容（gitignore，不入库）
 ```
@@ -89,7 +93,12 @@ cd frontend-app && npm install && npm run dev              # 前端开发服务�
 | POST | /books/{book_id}/events | 阅读行为上报（读完章节，同人同书每日限计 1 次） |
 | GET | /books/{book_id}/chapters | 章节目录 |
 | GET | /books/{book_id}/chapters/{chapter_index} | 章节正文 |
-| GET/PUT | /reading/progress/{book_id} | 阅读进度读取 / 保存 |
+| GET/PUT | /reading/progress/{book_id} | 阅读进度读取 / 保存（章节 + 页内断点） |
+| GET/POST | /vocabulary | 生词本列表 / 收录生词（用户+单词唯一，幂等） |
+| DELETE | /vocabulary/{id} | 移除生词 |
+| GET/POST | /bookmarks | 书签列表（可按书过滤）/ 添加书签（同位置幂等） |
+| DELETE | /bookmarks/{id} | 删除书签 |
+| GET | /lookup/word/{word} | 点词查义（LLM 中文释义，缓存 7 天，每日配额） |
 | POST | /ask | 通用 LLM 问答 |
 | POST | /ask/reading | 基于当前章节的 RAG 问答 |
 | GET | /level-test/questions | 下发测试题（不含答案） |
