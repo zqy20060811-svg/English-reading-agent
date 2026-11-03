@@ -1,20 +1,20 @@
 // 后端 API 客户端：统一携带 Bearer token，401 时静默刷新令牌并重放请求，失败才回登录页
-export const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8002'
+export const API_BASE: string = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8002'
 
 export const TOKEN_KEY = 'era_access_token'
 export const REFRESH_KEY = 'era_refresh_token'
 export const USER_KEY = 'era_username'
 export const LAST_BOOK_KEY = 'era_last_book'
 
-export function getToken() {
+export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY)
 }
 
-export function getRefreshToken() {
+export function getRefreshToken(): string | null {
   return localStorage.getItem(REFRESH_KEY)
 }
 
-export function logout() {
+export function logout(): void {
   // 尽力通知后端吊销令牌（失败不阻塞本地登出）
   const token = getToken()
   const refresh = getRefreshToken()
@@ -33,7 +33,7 @@ export function logout() {
 }
 
 // 静默刷新令牌（绕过 api() 包装，避免递归 401）
-async function tryRefresh() {
+async function tryRefresh(): Promise<boolean> {
   const refresh = getRefreshToken()
   if (!refresh) return false
   try {
@@ -53,17 +53,22 @@ async function tryRefresh() {
 }
 
 // 并发 401 共享同一次刷新，避免多个请求同时触发 refresh 导致轮换竞争
-let refreshingPromise = null
+let refreshingPromise: Promise<boolean> | null = null
 
-export async function api(path, { method = 'GET', body } = {}) {
-  const doFetch = () =>
+interface ApiOptions {
+  method?: string
+  body?: unknown
+}
+
+export async function api<T = any>(path: string, { method = 'GET', body }: ApiOptions = {}): Promise<T> {
+  const doFetch = (): Promise<Response> =>
     fetch(API_BASE + path, {
       method,
       headers: {
         'Content-Type': 'application/json',
         Authorization: 'Bearer ' + getToken(),
       },
-      body: body ? JSON.stringify(body) : undefined,
+      body: body === undefined ? undefined : JSON.stringify(body),
     })
 
   let resp = await doFetch()
@@ -78,9 +83,9 @@ export async function api(path, { method = 'GET', body } = {}) {
   }
   const data = await resp.json().catch(() => ({}))
   if (!resp.ok) {
-    let msg = data.detail || `请求失败（${resp.status}）`
-    if (Array.isArray(msg)) msg = msg[0].msg
-    throw new Error(msg)
+    let msg: unknown = (data as { detail?: unknown }).detail || `请求失败（${resp.status}）`
+    if (Array.isArray(msg)) msg = (msg[0] as { msg?: unknown }).msg
+    throw new Error(String(msg))
   }
-  return data
+  return data as T
 }

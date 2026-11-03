@@ -1,5 +1,5 @@
 // 书籍分类英文 -> 中文展示映射（未收录的分类原样展示）
-export const GENRE_CN = {
+export const GENRE_CN: Record<string, string> = {
   'Nursery Rhyme': '童谣',
   'Folklore': '民间传说',
   'Fairy Tale': '童话',
@@ -19,6 +19,6 @@ export const GENRE_CN = {
   'Classic': '经典',
 }
 
-export function genreCn(genre) {
+export function genreCn(genre: string): string {
   return GENRE_CN[genre] || genre || '未分类'
 }

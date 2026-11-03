@@ -1,3 +1,8 @@
 node_modules/
 dist/
 *.local
+
+# TypeScript 增量构建产物
+*.tsbuildinfo
+*.d.ts
+!src/vite-env.d.ts
