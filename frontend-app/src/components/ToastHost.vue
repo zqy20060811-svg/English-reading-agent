@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 // 全局提示条（底部居中，自动消失）
 import { store } from '../store'
 </script>

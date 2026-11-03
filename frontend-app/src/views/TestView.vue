@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 // 英语水平测试：入口（含上次结果）→ 答题（24 题）→ 结果分析 + 推荐书目
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -8,24 +8,60 @@ import { DIM_NAMES, LEVEL_NAMES, loadLevel, store, toast } from '../store'
 
 const router = useRouter()
 
-const view = ref('landing') // landing | running | result
-const lastResult = ref(null)
-const paper = ref(null)
-const answers = ref([])
+// 推荐书目条目
+interface RecommendBook {
+  book_id: number
+  title: string
+  author: string
+  cover_url: string | null
+  avg_chapter_words: number
+}
+
+// 上次测试结果 / 提交结果
+interface LevelTestResult {
+  level: string
+  total_score: number
+  max_score: number
+  recommended_level: string
+  vocabulary_acc: number
+  grammar_acc: number
+  reading_acc: number
+  level_detail?: Record<string, string>
+  analysis?: { overall?: string }
+  recommendations?: RecommendBook[]
+}
+
+// 题目与试卷
+interface Question {
+  id: number
+  dimension: string
+  level: string
+  text: string
+  options: string[]
+}
+
+interface Paper {
+  questions: Question[]
+}
+
+const view = ref<'landing' | 'running' | 'result'>('landing') // landing | running | result
+const lastResult = ref<LevelTestResult | null>(null)
+const paper = ref<Paper | null>(null)
+const answers = ref<(number | null)[]>([])
 const index = ref(0)
 const submitting = ref(false)
 
 onMounted(async () => {
   try {
-    lastResult.value = await api('/level-test/result')
+    lastResult.value = await api<LevelTestResult>('/level-test/result')
   } catch { /* 从未测试过 */ }
 })
 
-async function startTest() {
+async function startTest(): Promise<void> {
   try {
-    paper.value = await api('/level-test/questions')
+    paper.value = await api<Paper>('/level-test/questions')
   } catch (err) {
-    toast(err.message)
+    toast((err as Error).message)
     return
   }
   answers.value = new Array(paper.value.questions.length).fill(null)
@@ -33,20 +69,20 @@ async function startTest() {
   view.value = 'running'
 }
 
-const q = computed(() => (paper.value ? paper.value.questions[index.value] : null))
+const q = computed<Question | null>(() => (paper.value ? paper.value.questions[index.value] : null))
 const answeredCount = computed(() => answers.value.filter(a => a !== null).length)
 
-function pick(i) {
+function pick(i: number): void {
   answers.value[index.value] = i
 }
 
-function prevQ() {
+function prevQ(): void {
   if (index.value > 0) index.value--
 }
 
-function nextQ() {
+function nextQ(): void {
   if (answers.value[index.value] === null) { toast('请先选择一个答案'); return }
-  if (index.value < paper.value.questions.length - 1) { index.value++; return }
+  if (index.value < paper.value!.questions.length - 1) { index.value++; return }
   const missing = answers.value.findIndex(a => a === null)
   if (missing !== -1) {
     toast(`第 ${missing + 1} 题还没作答，已为你跳转过去`)
@@ -56,29 +92,29 @@ function nextQ() {
   submitTest()
 }
 
-async function submitTest() {
+async function submitTest(): Promise<void> {
   submitting.value = true
   try {
-    const result = await api('/level-test/submit', {
+    const result = await api<LevelTestResult>('/level-test/submit', {
       method: 'POST',
-      body: { answers: paper.value.questions.map((qq, i) => ({ question_id: qq.id, choice: answers.value[i] })) },
+      body: { answers: paper.value!.questions.map((qq, i) => ({ question_id: qq.id, choice: answers.value[i] })) },
     })
     lastResult.value = result
     store.level = result.level
     view.value = 'result'
     window.scrollTo({ top: 0, behavior: 'smooth' })
   } catch (err) {
-    toast('提交失败：' + err.message)
+    toast('提交失败：' + (err as Error).message)
   } finally {
     submitting.value = false
   }
 }
 
-function openBook(bookId) {
+function openBook(bookId: number): void {
   router.push({ name: 'reader', params: { bookId: String(bookId) } })
 }
 
-const dimRows = computed(() => {
+const dimRows = computed<[string, number][]>(() => {
   const r = lastResult.value
   return r ? [['词汇', r.vocabulary_acc], ['语法', r.grammar_acc], ['阅读理解', r.reading_acc]] : []
 })
@@ -125,22 +161,22 @@ const detailRows = computed(() =>
         </div>
         <div class="text-right">
           <div class="text-xs text-soft">进度</div>
-          <div class="font-bold">{{ index + 1 }} / {{ paper.questions.length }}</div>
+          <div class="font-bold">{{ index + 1 }} / {{ paper!.questions.length }}</div>
         </div>
       </div>
       <div class="h-1.5 bg-neutral-200 rounded-full overflow-hidden mb-6">
-        <div class="h-full bg-accent-500 rounded-full transition-all" :style="{ width: ((index + 1) / paper.questions.length * 100) + '%' }"></div>
+        <div class="h-full bg-accent-500 rounded-full transition-all" :style="{ width: ((index + 1) / paper!.questions.length * 100) + '%' }"></div>
       </div>
 
       <div class="rounded-3xl bg-white border border-neutral-100 shadow-card p-8">
         <div class="flex items-center gap-2 text-xs mb-4">
-          <span class="px-3 py-1 rounded-lg bg-accent-50 text-accent-600 font-semibold">{{ DIM_NAMES[q.dimension] || q.dimension }}</span>
-          <span class="px-3 py-1 rounded-lg bg-emerald-50 text-emerald-600 font-semibold">难度 {{ q.level }}</span>
+          <span class="px-3 py-1 rounded-lg bg-accent-50 text-accent-600 font-semibold">{{ DIM_NAMES[q!.dimension] || q!.dimension }}</span>
+          <span class="px-3 py-1 rounded-lg bg-emerald-50 text-emerald-600 font-semibold">难度 {{ q!.level }}</span>
           <span class="text-soft ml-1">选择一个答案</span>
         </div>
-        <h2 class="text-lg font-bold leading-relaxed whitespace-pre-line">{{ q.text }}</h2>
+        <h2 class="text-lg font-bold leading-relaxed whitespace-pre-line">{{ q!.text }}</h2>
         <div class="grid md:grid-cols-2 gap-4 mt-6">
-          <div v-for="(opt, i) in q.options" :key="i" @click="pick(i)"
+          <div v-for="(opt, i) in q!.options" :key="i" @click="pick(i)"
             class="border-2 rounded-2xl p-4 cursor-pointer text-sm transition"
             :class="answers[index] === i ? 'border-accent-500 bg-accent-50' : 'border-neutral-100 hover:border-accent-400'">
             <b class="mr-1">{{ 'ABCD'[i] }}.</b>{{ opt }}
@@ -151,11 +187,11 @@ const detailRows = computed(() =>
             class="px-5 py-2.5 rounded-2xl border border-neutral-200 text-soft text-sm hover:bg-neutral-50 transition disabled:opacity-40">
             ← 上一题
           </button>
-          <span class="text-xs text-soft">已答 {{ answeredCount }} / {{ paper.questions.length }}</span>
+          <span class="text-xs text-soft">已答 {{ answeredCount }} / {{ paper!.questions.length }}</span>
           <button @click="nextQ" :disabled="submitting"
             class="px-5 py-2.5 rounded-2xl bg-accent-500 text-white text-sm font-semibold hover:bg-accent-600 transition disabled:opacity-60">
             <i v-if="submitting" class="fa fa-circle-o-notch fa-spin mr-1"></i>
-            {{ index === paper.questions.length - 1 ? '提交测试' : '下一题 →' }}
+            {{ index === paper!.questions.length - 1 ? '提交测试' : '下一题 →' }}
           </button>
         </div>
       </div>

@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 // 个人中心：用户信息 + 阅读统计 + 最近阅读（点击续读）
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -6,12 +6,31 @@ import BookCover from '../components/BookCover.vue'
 import ProgressBar from '../components/ProgressBar.vue'
 import { api } from '../api/client'
 import { LEVEL_NAMES, store, toast } from '../store'
+import type { HistoryItem } from '../types'
 
 const router = useRouter()
+
+// 阅读统计
+interface Stats {
+  read_books: number
+  liked_count: number
+  favorite_count: number
+  translation_count: number
+  translation_chars: number
+  chapters_finished: number
+  level: string | null
+}
+
+// 当前用户信息
+interface MeInfo {
+  email: string
+  email_verified: boolean
+}
+
 const loading = ref(true)
-const stats = ref(null)   // { read_books, liked_count, favorite_count, translation_count, translation_chars, level }
-const history = ref([])   // 最近阅读
-const me = ref(null)      // 当前用户信息（含 email_verified）
+const stats = ref<Stats | null>(null)   // { read_books, liked_count, favorite_count, translation_count, translation_chars, level }
+const history = ref<HistoryItem[]>([])   // 最近阅读
+const me = ref<MeInfo | null>(null)      // 当前用户信息（含 email_verified）
 
 // 邮箱验证（开发环境验证码打印到后端控制台）
 const verifyCode = ref('')
@@ -21,63 +40,63 @@ const cooldown = ref(0)
 
 onMounted(async () => {
   try {
-    const [s, h, u] = await Promise.all([api('/me/stats'), api('/me/history?limit=10'), api('/me')])
+    const [s, h, u] = await Promise.all([api<Stats>('/me/stats'), api<HistoryItem[]>('/me/history?limit=10'), api<MeInfo>('/me')])
     stats.value = s
     history.value = h
     me.value = u
   } catch (err) {
-    toast('个人中心加载失败：' + err.message)
+    toast('个人中心加载失败：' + (err as Error).message)
   } finally {
     loading.value = false
   }
 })
 
-async function sendCode() {
+async function sendCode(): Promise<void> {
   sending.value = true
   try {
-    await api('/auth/send-verification', { method: 'POST', body: { email: me.value.email } })
+    await api('/auth/send-verification', { method: 'POST', body: { email: me.value!.email } })
     toast('验证码已发送（开发环境见后端控制台）', 'success')
     cooldown.value = 60
-    const timer = setInterval(() => {
+    const timer: ReturnType<typeof setInterval> = setInterval(() => {
       cooldown.value--
       if (cooldown.value <= 0) clearInterval(timer)
     }, 1000)
   } catch (err) {
-    toast('发送失败：' + err.message)
+    toast('发送失败：' + (err as Error).message)
   } finally {
     sending.value = false
   }
 }
 
-async function doVerify() {
+async function doVerify(): Promise<void> {
   if (verifyCode.value.trim().length !== 6) { toast('请输入 6 位验证码'); return }
   verifying.value = true
   try {
     await api('/auth/verify-email', {
       method: 'POST',
-      body: { email: me.value.email, code: verifyCode.value.trim() },
+      body: { email: me.value!.email, code: verifyCode.value.trim() },
     })
-    me.value.email_verified = true
+    me.value!.email_verified = true
     toast('邮箱验证成功', 'success')
   } catch (err) {
-    toast('验证失败：' + err.message)
+    toast('验证失败：' + (err as Error).message)
   } finally {
     verifying.value = false
   }
 }
 
-const statCards = () => [
-  { icon: 'fa-book', label: '读过的书', value: stats.value.read_books },
-  { icon: 'fa-heart', label: '点赞', value: stats.value.liked_count },
-  { icon: 'fa-star', label: '收藏', value: stats.value.favorite_count },
-  { icon: 'fa-language', label: '翻译次数', value: stats.value.translation_count },
+const statCards = (): { icon: string; label: string; value: number }[] => [
+  { icon: 'fa-book', label: '读过的书', value: stats.value!.read_books },
+  { icon: 'fa-heart', label: '点赞', value: stats.value!.liked_count },
+  { icon: 'fa-star', label: '收藏', value: stats.value!.favorite_count },
+  { icon: 'fa-language', label: '翻译次数', value: stats.value!.translation_count },
 ]
 
-function openBook(bookId) {
+function openBook(bookId: number): void {
   router.push({ name: 'reader', params: { bookId: String(bookId) } })
 }
 
-function fmtTime(iso) {
+function fmtTime(iso: string): string {
   try { return new Date(iso).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) } catch { return '' }
 }
 </script>

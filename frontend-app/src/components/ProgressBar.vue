@@ -1,8 +1,6 @@
-<script setup>
+<script setup lang="ts">
 // 细进度条：橙色填充（对照目标设计稿的书目进度样式）
-defineProps({
-  percent: { type: Number, default: 0 },
-})
+withDefaults(defineProps<{ percent?: number }>(), { percent: 0 })
 </script>
 
 <template>

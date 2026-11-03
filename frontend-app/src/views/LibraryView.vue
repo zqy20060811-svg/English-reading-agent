@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 // 书库主页：Continue reading 深色大卡 + 分类筛选 + 书格（分页展示）
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -7,21 +7,23 @@ import ProgressBar from '../components/ProgressBar.vue'
 import { api, LAST_BOOK_KEY } from '../api/client'
 import { genreCn } from '../genres'
 import { levelOf, LEVEL_NAMES, loadBooks, store, toast } from '../store'
+import type { Book, LastBook } from '../types'
 
 const router = useRouter()
 
 const loading = ref(true)
-const lastBook = ref(null)     // { book_id, chapter_index, percent }
-const lastBookData = ref(null) // 书目详情
+const lastBook = ref<LastBook | null>(null)     // { book_id, chapter_index, percent }
+const lastBookData = ref<Book | null>(null) // 书目详情
 const genre = ref('全部')
+const level = ref('全部') // 难度等级筛选（按全书词数分档）
 const search = ref('')
-const hotIds = ref(new Set()) // 热门榜单前 3 的书籍 id（角标展示）
+const hotIds = ref<Set<number>>(new Set()) // 热门榜单前 3 的书籍 id（角标展示）
 
 // 分页（书库书量增长后避免单页过长）
 const PAGE_SIZE = 12
 const page = ref(1)
 
-watch([genre, search], () => {
+watch([genre, level, search], () => {
   page.value = 1 // 切换筛选/搜索后回到第一页
 })
 
@@ -30,30 +32,33 @@ onMounted(async () => {
     await loadBooks()
     // 热门榜单（失败不影响书库展示）
     try {
-      const hot = await api('/books/hot?limit=3')
+      const hot = await api<{ book_id: number }[]>('/books/hot?limit=3')
       hotIds.value = new Set(hot.map(h => h.book_id))
     } catch { /* 榜单加载失败忽略 */ }
     // 最近阅读（localStorage 记录）
     try {
-      const last = JSON.parse(localStorage.getItem(LAST_BOOK_KEY) || 'null')
+      const last = JSON.parse(localStorage.getItem(LAST_BOOK_KEY) || 'null') as LastBook | null
       if (last && store.books.some(b => b.id === last.book_id)) {
         lastBook.value = last
-        lastBookData.value = store.books.find(b => b.id === last.book_id)
+        lastBookData.value = store.books.find(b => b.id === last.book_id) as Book | null
       }
     } catch { /* 记录损坏则忽略 */ }
   } catch (err) {
-    toast('书库加载失败：' + err.message)
+    toast('书库加载失败：' + (err as Error).message)
   } finally {
     loading.value = false
   }
 })
 
 const genres = computed(() => ['全部', ...new Set(store.books.map(b => b.genre).filter(Boolean))])
+// 难度等级筛选条目（固定五档，与书卡右下角角标同口径）
+const levels = computed(() => ['全部', 'A1', 'A2', 'B1', 'B2', 'C1'])
 
 const filtered = computed(() => {
   const kw = search.value.trim().toLowerCase()
   return store.books.filter(b =>
     (genre.value === '全部' || (b.genre || 'Classic') === genre.value) &&
+    (level.value === '全部' || levelOf(b.word_count) === level.value) &&
     (!kw || (b.title || '').toLowerCase().includes(kw) || (b.author || '').toLowerCase().includes(kw)))
 })
 
@@ -61,13 +66,13 @@ const totalPages = computed(() => Math.max(1, Math.ceil(filtered.value.length / 
 const paged = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE))
 
 // 页码按钮列表：超过 7 页时收拢为「1 2 … n-1 n」形式
-const pageList = computed(() => {
+const pageList = computed<(string | number)[]>(() => {
   const total = totalPages.value
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
   const cur = page.value
   const wanted = new Set([1, 2, cur - 1, cur, cur + 1, total - 1, total])
   const list = [...wanted].filter(p => p >= 1 && p <= total).sort((a, b) => a - b)
-  const out = []
+  const out: (string | number)[] = []
   let prev = 0
   for (const p of list) {
     if (p - prev > 1) out.push('…')
@@ -77,12 +82,12 @@ const pageList = computed(() => {
   return out
 })
 
-function goPage(p) {
+function goPage(p: string | number) {
   if (typeof p !== 'number') return
   page.value = Math.min(Math.max(1, p), totalPages.value)
 }
 
-function openBook(bookId) {
+function openBook(bookId: number) {
   router.push({ name: 'reader', params: { bookId: String(bookId) } })
 }
 
@@ -114,8 +119,8 @@ function openContinue() {
             <div class="book-title text-xl font-bold truncate group-hover:text-accent-400 transition">{{ lastBookData.title }}</div>
             <div class="text-sm text-neutral-400 mt-1">{{ lastBookData.author }}</div>
             <div class="mt-auto">
-              <ProgressBar :percent="lastBook.percent" class="mb-2" />
-              <div class="text-xs text-neutral-400">{{ Math.round(lastBook.percent) }}% · 第 {{ lastBook.chapter_index }} 章</div>
+              <ProgressBar :percent="lastBook!.percent" class="mb-2" />
+              <div class="text-xs text-neutral-400">{{ Math.round(lastBook!.percent) }}% · 第 {{ lastBook!.chapter_index }} 章</div>
             </div>
           </div>
           <div class="self-center ml-auto shrink-0">
@@ -148,14 +153,23 @@ function openContinue() {
         </div>
       </div>
 
-      <!-- 分类 pill -->
-      <div class="flex flex-wrap gap-2 mt-4">
+      <!-- 分类 pill + 难度等级筛选 -->
+      <div class="flex flex-wrap items-center gap-2 mt-4">
         <button v-for="g in genres" :key="g" @click="genre = g"
           class="px-4 py-1.5 rounded-full text-xs font-medium border transition"
           :class="genre === g
             ? 'bg-accent-500 border-accent-500 text-white shadow-[0_6px_16px_rgba(255,107,44,.35)]'
             : 'bg-white border-neutral-200 text-neutral-500 hover:border-accent-400 hover:text-accent-600'">
           {{ g === '全部' ? g : genreCn(g) }}
+        </button>
+        <!-- 分隔线 + 等级筛选 -->
+        <span class="hidden sm:block w-px h-5 bg-neutral-200 mx-1"></span>
+        <button v-for="lv in levels" :key="lv" @click="level = lv"
+          class="px-3 py-1.5 rounded-full text-xs font-medium border transition"
+          :class="level === lv
+            ? 'bg-ink border-ink text-white'
+            : 'bg-white border-neutral-200 text-neutral-400 hover:border-ink hover:text-ink'">
+          {{ lv === '全部' ? '全部等级' : lv }}
         </button>
       </div>
 

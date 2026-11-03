@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 // 设置页：修改密码 + 翻译默认目标语言（保存到服务端，翻译页自动生效）
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -14,25 +14,25 @@ const confirmPwd = ref('')
 const changing = ref(false)
 
 // 翻译默认目标语言（与翻译页 LANG_PROMPTS 表述保持一致）
-const LANG_PROMPTS = { zh: '中文', en: 'English', ja: '日语', ko: '韩语', fr: '法语', de: '德语', es: '西班牙语', ru: '俄语' }
+const LANG_PROMPTS: Record<string, string> = { zh: '中文', en: 'English', ja: '日语', ko: '韩语', fr: '法语', de: '德语', es: '西班牙语', ru: '俄语' }
 const PROMPT_TO_CODE = Object.fromEntries(Object.entries(LANG_PROMPTS).map(([code, name]) => [name, code]))
 const targetLangCode = ref('zh')
 const savingLang = ref(false)
 const confirmLogout = ref(false) // 两段式确认：第一次点击进入待确认状态
 
-function doLogout() {
+function doLogout(): void {
   logout()
   router.replace('/login')
 }
 
 onMounted(async () => {
   try {
-    const s = await api('/me/settings')
+    const s = await api<{ target_lang: string }>('/me/settings')
     if (PROMPT_TO_CODE[s.target_lang]) targetLangCode.value = PROMPT_TO_CODE[s.target_lang]
   } catch { /* 读取失败保持默认，保存时可再试 */ }
 })
 
-async function changePassword() {
+async function changePassword(): Promise<void> {
   if (!oldPwd.value || !newPwd.value) { toast('请填写完整'); return }
   if (newPwd.value.length < 8 || !/[A-Za-z]/.test(newPwd.value) || !/\d/.test(newPwd.value)) {
     toast('新密码至少 8 位，且需同时包含字母和数字'); return
@@ -47,19 +47,19 @@ async function changePassword() {
       router.replace('/login')
     }, 1200)
   } catch (err) {
-    toast('修改失败：' + err.message)
+    toast('修改失败：' + (err as Error).message)
   } finally {
     changing.value = false
   }
 }
 
-async function saveLang() {
+async function saveLang(): Promise<void> {
   savingLang.value = true
   try {
     await api('/me/settings', { method: 'PUT', body: { target_lang: LANG_PROMPTS[targetLangCode.value] } })
     toast('已保存，翻译页将默认使用该语言', 'success')
   } catch (err) {
-    toast('保存失败：' + err.message)
+    toast('保存失败：' + (err as Error).message)
   } finally {
     savingLang.value = false
   }

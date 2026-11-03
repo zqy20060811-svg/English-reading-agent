@@ -1,8 +1,16 @@
-<script setup>
+<script setup lang="ts">
 // 翻译页：语言选择 / 交换 / 大模型预留 / 历史（localStorage，最多 50 条）
 import { onMounted, ref } from 'vue'
 import { api } from '../api/client'
 import { toast } from '../store'
+
+// 翻译历史条目（localStorage 持久化）
+interface TranslateHistory {
+  text: string
+  translation: string
+  label: string
+  time: string
+}
 
 const HISTORY_KEY = 'era_translate_history'
 const MAX_LEN = 5000
@@ -19,8 +27,8 @@ const LANGS = [
   { code: 'ru', name: 'Русский' },
 ]
 // 传给后端 LLM 的语言表述（auto 除外）
-const LANG_PROMPTS = { zh: '中文', en: 'English', ja: '日语', ko: '韩语', fr: '法语', de: '德语', es: '西班牙语', ru: '俄语' }
-const langName = code => LANGS.find(l => l.code === code)?.name || code
+const LANG_PROMPTS: Record<string, string> = { zh: '中文', en: 'English', ja: '日语', ko: '韩语', fr: '法语', de: '德语', es: '西班牙语', ru: '俄语' }
+const langName = (code: string): string => LANGS.find(l => l.code === code)?.name || code
 
 const srcLang = ref('zh')
 const tgtLang = ref('en')
@@ -29,25 +37,25 @@ const input = ref('')
 const output = ref('')
 const outputError = ref('')
 const translating = ref(false)
-const history = ref([])
+const history = ref<TranslateHistory[]>([])
 
 onMounted(async () => {
   try { history.value = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]') } catch { history.value = [] }
   // 个人中心设置的默认目标语言（服务端偏好），静默应用
   try {
-    const s = await api('/me/settings')
+    const s = await api<{ target_lang: string }>('/me/settings')
     const name = s.target_lang
     const code = Object.entries(LANG_PROMPTS).find(([, n]) => n === name)?.[0]
     if (code && code !== 'auto') tgtLang.value = code
   } catch { /* 保持默认 en */ }
 })
 
-function swapLangs() {
+function swapLangs(): void {
   if (srcLang.value === 'auto') { toast('自动检测语言无法换向，请先选择具体语言'); return }
   ;[srcLang.value, tgtLang.value] = [tgtLang.value, srcLang.value]
 }
 
-async function pasteText() {
+async function pasteText(): Promise<void> {
   try {
     const text = await navigator.clipboard.readText()
     if (!text) { toast('剪贴板为空'); return }
@@ -57,7 +65,7 @@ async function pasteText() {
   }
 }
 
-async function doTranslate() {
+async function doTranslate(): Promise<void> {
   const text = input.value.trim()
   if (!text) { toast('请输入要翻译的内容'); return }
   if (text.length > MAX_LEN) { toast(`文本超过 ${MAX_LEN} 字符上限`); return }
@@ -70,7 +78,7 @@ async function doTranslate() {
   output.value = ''
   outputError.value = ''
   try {
-    const result = await api('/translate', {
+    const result = await api<{ translation: string }>('/translate', {
       method: 'POST',
       body: { text, source_lang: sourceLang, target_lang: targetLang, provider: model.value },
     })
@@ -79,18 +87,18 @@ async function doTranslate() {
     history.value = history.value.slice(0, 50)
     localStorage.setItem(HISTORY_KEY, JSON.stringify(history.value))
   } catch (err) {
-    outputError.value = err.message
+    outputError.value = (err as Error).message
   } finally {
     translating.value = false
   }
 }
 
-function copyResult() {
+function copyResult(): void {
   if (!output.value) return
   navigator.clipboard.writeText(output.value).then(() => toast('已复制到剪贴板', 'ok'))
 }
 
-function useHistory(i) {
+function useHistory(i: number): void {
   const h = history.value[i]
   if (!h) return
   input.value = h.text
@@ -99,12 +107,12 @@ function useHistory(i) {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-function deleteHistory(i) {
+function deleteHistory(i: number): void {
   history.value.splice(i, 1)
   localStorage.setItem(HISTORY_KEY, JSON.stringify(history.value))
 }
 
-function clearHistory() {
+function clearHistory(): void {
   history.value = []
   localStorage.removeItem(HISTORY_KEY)
   toast('已清空翻译历史', 'ok')

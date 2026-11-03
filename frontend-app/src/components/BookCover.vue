@@ -1,10 +1,9 @@
-<script setup>
+<script setup lang="ts">
 // 书籍封面：有封面用图，加载失败 / 无封面回退树皮纹理占位
 import { ref } from 'vue'
+import type { CoverBook } from '../types'
 
-const props = defineProps({
-  book: { type: Object, required: true },
-})
+const props = defineProps<{ book: CoverBook }>()
 
 const broken = ref(false)
 </script>

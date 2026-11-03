@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 // 排行榜：基于 /books/hot 的热度榜单（加权行为 + 14 天半衰期 + 贝叶斯收缩，Redis 缓存 10 分钟）
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -8,24 +8,34 @@ import { toast } from '../store'
 
 const router = useRouter()
 const loading = ref(true)
-const list = ref([]) // [{ rank, book_id, title, author, cover_url, score }]
+const list = ref<HotItem[]>([]) // [{ rank, book_id, title, author, cover_url, score }]
+
+// /books/hot 返回的榜单条目
+interface HotItem {
+  rank: number
+  book_id: number
+  title: string
+  author: string
+  cover_url: string | null
+  score: number
+}
 
 onMounted(async () => {
   try {
-    list.value = await api('/books/hot?limit=50')
+    list.value = await api<HotItem[]>('/books/hot?limit=50')
   } catch (err) {
-    toast('榜单加载失败：' + err.message)
+    toast('榜单加载失败：' + (err as Error).message)
   } finally {
     loading.value = false
   }
 })
 
-function openBook(bookId) {
+function openBook(bookId: number) {
   router.push({ name: 'reader', params: { bookId: String(bookId) } })
 }
 
 // 前三名金银铜徽章，其余为中性序号
-function badgeClass(rank) {
+function badgeClass(rank: number): string {
   if (rank === 1) return 'bg-amber-400 text-white shadow-[0_6px_16px_rgba(251,191,36,.45)]'
   if (rank === 2) return 'bg-neutral-400 text-white'
   if (rank === 3) return 'bg-amber-700 text-white'

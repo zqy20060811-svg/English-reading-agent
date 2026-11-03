@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 // 登录 / 注册（沿用现有接口与交互，按新设计语言重绘）
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -6,19 +6,19 @@ import { api, TOKEN_KEY, REFRESH_KEY, USER_KEY } from '../api/client'
 import { toast } from '../store'
 
 const router = useRouter()
-const tab = ref('login')
-const alert = ref(null) // { type: 'error'|'ok', text }
+const tab = ref<'login' | 'register'>('login')
+const alert = ref<{ type: 'error' | 'ok'; text: string } | null>(null) // { type: 'error'|'ok', text }
 const loading = ref(false)
 
 const loginForm = ref({ username: '', password: '' })
 const registerForm = ref({ username: '', email: '', password: '' })
 
-function switchTab(t) {
+function switchTab(t: 'login' | 'register') {
   tab.value = t
   alert.value = null
 }
 
-function showAlert(type, text) {
+function showAlert(type: 'error' | 'ok', text: string) {
   alert.value = { type, text }
 }
 
@@ -26,7 +26,7 @@ async function doLogin() {
   alert.value = null
   loading.value = true
   try {
-    const token = await api('/auth/login', {
+    const token = await api<{ access_token: string; refresh_token: string }>('/auth/login', {
       method: 'POST',
       body: { username: loginForm.value.username.trim(), password: loginForm.value.password },
     })
@@ -35,9 +35,9 @@ async function doLogin() {
     localStorage.setItem(USER_KEY, loginForm.value.username.trim())
     router.replace('/')
   } catch (err) {
-    showAlert('error', '登录失败：' + (err.message === 'Failed to fetch'
+    showAlert('error', '登录失败：' + ((err as Error).message === 'Failed to fetch'
       ? '无法连接后端服务，请确认服务已启动（http://127.0.0.1:8002）'
-      : err.message))
+      : (err as Error).message))
   } finally {
     loading.value = false
   }
@@ -47,7 +47,7 @@ async function doRegister() {
   alert.value = null
   loading.value = true
   try {
-    const user = await api('/auth/register', {
+    const user = await api<{ username: string }>('/auth/register', {
       method: 'POST',
       body: {
         username: registerForm.value.username.trim(),
@@ -59,7 +59,7 @@ async function doRegister() {
     tab.value = 'login'
     showAlert('ok', `注册成功，${user.username} 已自动填入用户名，请登录。`)
   } catch (err) {
-    showAlert('error', '注册失败：' + err.message)
+    showAlert('error', '注册失败：' + (err as Error).message)
   } finally {
     loading.value = false
   }
