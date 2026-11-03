@@ -1,4 +1,4 @@
-﻿"""阶段4后台管理测试。
+"""阶段4后台管理测试。
 
 - TestCostEstimate：成本估算纯单元（始终运行）
 - TestAdminDB：下架书籍可见性（需要本地 PostgreSQL，缺失自动跳过）
@@ -790,10 +790,18 @@ class TestIngestRecovery:
                 chunk_id = ck.id
 
                 # 绕过 FK 触发器删除章节行，留下真孤儿分块（模拟历史遗留数据）
-                await db.execute(text("SET session_replication_role = replica"))
-                await db.execute(text(f"DELETE FROM book_chapters WHERE id = {ch_id}"))
-                await db.execute(text("SET session_replication_role = DEFAULT"))
+                # session_replication_role 是会话级设置，连接归还池后仍生效，
+                # 必须 try/finally 确保恢复 DEFAULT，否则后续请求外键校验全部失效
+                try:
+                    await db.execute(text("SET session_replication_role = replica"))
+                    await db.execute(text(f"DELETE FROM book_chapters WHERE id = {ch_id}"))
+                finally:
+                    await db.execute(text("SET session_replication_role = DEFAULT"))
                 await db.commit()
+
+                # 同连接自检：角色确实已恢复 origin（异常路径也只走 finally）
+                role = (await db.execute(text("SHOW session_replication_role"))).scalar()
+                assert role == "origin", f"session_replication_role 未恢复：{role}"
 
             try:
                 # 清扫前：孤儿确实存在
@@ -807,6 +815,46 @@ class TestIngestRecovery:
                     assert await db.get(BookChunk, chunk_id) is None
             finally:
                 await self._cleanup_book(gid)
+
+        _run(main())
+
+
+    def test_empty_id_list_is_noop(self):
+        """边界：gutenberg_ids=[] 表示「没有书要处理」，绝不能退化为全库操作。
+
+        危险路径：chunk_books([]) 若被当成全库，会重建所有分块并清空全库向量；
+        embed_missing_chunks([]) 若被当成全库，会补算全库欠账。
+        本测试只读断言：调用前后全库统计完全一致。
+        """
+        async def main():
+            from sqlalchemy import func
+
+            from app.db.database import AsyncSessionLocal
+            from app.models.book_chapter import BookChapter
+            from app.models.book_chunk import BookChunk
+            from app.pipeline import chunk_books, embed_missing_chunks
+
+            async def snapshot() -> dict:
+                async with AsyncSessionLocal() as db:
+                    total = (await db.execute(
+                        select(func.count()).select_from(BookChunk)
+                    )).scalar()
+                    with_vec = (await db.execute(
+                        select(func.count()).select_from(BookChunk)
+                        .where(BookChunk.embedding.is_not(None))
+                    )).scalar()
+                    chapters = (await db.execute(
+                        select(func.count()).select_from(BookChapter)
+                    )).scalar()
+                return {"chunks": total, "vectors": with_vec, "chapters": chapters}
+
+            before = await snapshot()
+            ck = await chunk_books([])
+            assert ck["chunks"] == 0 and ck["chapters"] == 0  # 直接返回，不重建
+            emb = await embed_missing_chunks(gutenberg_ids=[])
+            assert emb["chunks"] == 0  # 不触发全库补算
+            after = await snapshot()
+            assert after == before, f"空列表退化为全库操作：{before} → {after}"
 
         _run(main())
 

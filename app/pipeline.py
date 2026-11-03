@@ -4,6 +4,7 @@
 原始正文始终落盘 data/books/（作为重新切分/重建向量的数据源），本流水线
 只负责把磁盘内容推进数据库。
 """
+import asyncio
 import time
 
 from sqlalchemy import delete, select
@@ -24,15 +25,24 @@ async def sync_books() -> object:
 
 
 async def chunk_books(gutenberg_ids: list[int] | None = None) -> dict:
-    """按古登堡 ID 重建分块（None 表示全部书），返回统计与各环节耗时。"""
+    """按古登堡 ID 重建分块（None 表示全部书），返回统计与各环节耗时。
+
+    注意：传空列表表示「没有书要处理」，直接返回不触碰任何数据；
+    只有 None 才代表全库重建（会清空全库向量后重建）。
+    """
     t0 = time.perf_counter()
+    if gutenberg_ids is not None and not gutenberg_ids:
+        return {
+            "chapters": 0, "chunks": 0, "split_s": 0.0, "db_s": 0.0,
+            "commit_s": 0.0, "total_s": time.perf_counter() - t0,
+        }
     async with AsyncSessionLocal() as s:
         # 兜底清理孤儿分块：章节已被删除但其分块（含向量）仍残留的历史数据，
         # 否则会按 book_id 继续命中检索、用旧原文污染 RAG 回答
         orphan_stmt = delete(BookChunk).where(
             BookChunk.chapter_id.not_in(select(BookChapter.id))
         )
-        if gutenberg_ids:
+        if gutenberg_ids is not None:
             orphan_stmt = orphan_stmt.where(
                 BookChunk.book_id.in_(
                     select(Book.id).where(Book.gutenberg_id.in_(gutenberg_ids))
@@ -41,7 +51,7 @@ async def chunk_books(gutenberg_ids: list[int] | None = None) -> dict:
         await s.execute(orphan_stmt)
 
         stmt = select(BookChapter.id, BookChapter.book_id, BookChapter.content)
-        if gutenberg_ids:
+        if gutenberg_ids is not None:
             stmt = (
                 stmt.where(BookChapter.book_id == Book.id)
                 .where(Book.gutenberg_id.in_(gutenberg_ids))
@@ -91,6 +101,7 @@ async def embed_missing_chunks(
         limit: 最多处理的块数（调试/分批用）。
         gutenberg_ids: 只处理指定书籍的缺向量块；None 表示全库。
             入库任务应传入本次书号，避免顺带补算全库欠账导致任务时长不可控。
+        空列表表示「没有书要处理」，直接返回 0 而不触发全库补算。
 
     返回处理的块数与耗时拆分：model_s 模型加载、encode_s 编码、db_s 写库。
     app.embedding 延迟导入，避免不向量化时加载 sentence-transformers。
@@ -98,9 +109,11 @@ async def embed_missing_chunks(
     from app.embedding import encode_texts
 
     BATCH_SIZE = 32
+    if gutenberg_ids is not None and not gutenberg_ids:
+        return {"chunks": 0, "model_s": 0.0, "encode_s": 0.0, "db_s": 0.0}
     async with AsyncSessionLocal() as s:
         id_q = select(BookChunk.id).where(BookChunk.embedding.is_(None))
-        if gutenberg_ids:
+        if gutenberg_ids is not None:
             id_q = id_q.where(
                 BookChunk.book_id.in_(
                     select(Book.id).where(Book.gutenberg_id.in_(gutenberg_ids))
@@ -114,8 +127,10 @@ async def embed_missing_chunks(
             return {"chunks": 0, "model_s": 0.0, "encode_s": 0.0, "db_s": 0.0}
 
         # 模型加载单独计时（首次调用 encode_texts 时触发 lru_cache 单例加载）
+        # BGE-M3 CPU 推理是同步阻塞调用，必须放线程池，否则会阻塞 FastAPI 事件循环
+        # （入库任务在后台执行，但事件循环被占用时所有 API 请求都会超时无响应）
         t0 = time.perf_counter()
-        encode_texts(["warmup"])
+        await asyncio.to_thread(encode_texts, ["warmup"])
         model_s = time.perf_counter() - t0
 
         encode_s = db_s = 0.0
@@ -130,7 +145,7 @@ async def embed_missing_chunks(
             texts = [r.chunk_text for r in rows]
 
             t1 = time.perf_counter()
-            vectors = encode_texts(texts)
+            vectors = await asyncio.to_thread(encode_texts, texts)
             encode_s += time.perf_counter() - t1
 
             t1 = time.perf_counter()
