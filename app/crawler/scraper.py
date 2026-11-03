@@ -9,6 +9,7 @@
 """
 
 import json
+import os
 import re
 import time
 from datetime import datetime, timezone
@@ -97,6 +98,13 @@ def count_words(text: str) -> int:
     return len(re.findall(r"[A-Za-z']+", text))
 
 
+def _atomic_write_text(path: Path, data: str) -> None:
+    """原子写文本文件：先写 .tmp 再 os.replace，避免进程中断留下截断的半截文件"""
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(data, encoding="utf-8")
+    os.replace(tmp, path)
+
+
 def save_book(book: BookMeta, content: str, output_dir: Path) -> dict:
     """将单本书的信息与正文写入磁盘，返回书籍信息字典。"""
     book_dir = output_dir / slugify(book.title)
@@ -111,10 +119,8 @@ def save_book(book: BookMeta, content: str, output_dir: Path) -> dict:
         "downloaded_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    (book_dir / "info.json").write_text(
-        json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
-    (book_dir / "content.txt").write_text(content, encoding="utf-8")
+    _atomic_write_text(book_dir / "info.json", json.dumps(info, ensure_ascii=False, indent=2))
+    _atomic_write_text(book_dir / "content.txt", content)
     return info
 
 

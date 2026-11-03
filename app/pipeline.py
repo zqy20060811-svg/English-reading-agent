@@ -27,6 +27,19 @@ async def chunk_books(gutenberg_ids: list[int] | None = None) -> dict:
     """按古登堡 ID 重建分块（None 表示全部书），返回统计与各环节耗时。"""
     t0 = time.perf_counter()
     async with AsyncSessionLocal() as s:
+        # 兜底清理孤儿分块：章节已被删除但其分块（含向量）仍残留的历史数据，
+        # 否则会按 book_id 继续命中检索、用旧原文污染 RAG 回答
+        orphan_stmt = delete(BookChunk).where(
+            BookChunk.chapter_id.not_in(select(BookChapter.id))
+        )
+        if gutenberg_ids:
+            orphan_stmt = orphan_stmt.where(
+                BookChunk.book_id.in_(
+                    select(Book.id).where(Book.gutenberg_id.in_(gutenberg_ids))
+                )
+            )
+        await s.execute(orphan_stmt)
+
         stmt = select(BookChapter.id, BookChapter.book_id, BookChapter.content)
         if gutenberg_ids:
             stmt = (

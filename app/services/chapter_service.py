@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.database import AsyncSessionLocal
 from app.models.book import Book
 from app.models.book_chapter import BookChapter
+from app.models.book_chunk import BookChunk
 
 # 本地书源根目录（相对于项目根目录）
 DEFAULT_BOOKS_DIR = Path("data/books")
@@ -257,6 +258,11 @@ async def sync_chapters_from_local(
                     row.word_count = _word_count(body)
             stale_ids = [c.id for idx, c in by_index.items() if idx > len(parts)]
             if stale_ids:
+                # 级联清理被删章节的分块（含向量）：否则孤儿 chunk 会继续按 book_id
+                # 命中 RAG 检索，用旧原文污染回答
+                await session.execute(
+                    delete(BookChunk).where(BookChunk.chapter_id.in_(stale_ids))
+                )
                 await session.execute(delete(BookChapter).where(BookChapter.id.in_(stale_ids)))
             stats["db_s"] += time.perf_counter() - t0
 

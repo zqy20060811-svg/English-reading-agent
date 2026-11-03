@@ -319,6 +319,191 @@ class TestIngestReliability:
         _run(main())
 
 
+# ================= 入库幂等性（run_ingest 重复执行 / 章节收缩 / 孤儿向量清理） =================
+
+
+@requires_db
+class TestIngestIdempotency:
+    """run_ingest 幂等性与数据库写入策略验收：
+
+    - 章节收缩时被删章节的分块（含向量）级联清理，不留孤儿向量
+    - chunk_books 兜底清理历史孤儿分块
+    - 分块重建后旧向量不残留（embedding 重置为 NULL，等待补算）
+    """
+
+    @staticmethod
+    def _book_body() -> str:
+        # 12 行 × 约 30 词 ≈ 360 词（> MIN_WORDS=150 防止过小章节被并入前章），
+        # 且章标题间隔 > WIN_GAP=8 行防止窗口去重误吞
+        return "\n".join(["the quick brown fox jumps over the lazy dog again " * 4] * 12)
+
+    @staticmethod
+    async def _cleanup_book(book_id: int) -> None:
+        from app.db.database import AsyncSessionLocal
+        from app.models.book import Book
+        from app.models.book_chapter import BookChapter
+        from app.models.book_chunk import BookChunk
+
+        async with AsyncSessionLocal() as db:
+            await db.execute(
+                BookChunk.__table__.delete().where(BookChunk.book_id == book_id)
+            )
+            await db.execute(
+                BookChapter.__table__.delete().where(BookChapter.book_id == book_id)
+            )
+            b = await db.get(Book, book_id)
+            if b:
+                await db.delete(b)
+            await db.commit()
+
+    def test_shrinking_chapters_cascade_deletes_chunks(self):
+        """原文更新导致章节数减少：被删章节的分块与向量必须级联删除，不留孤儿"""
+        import json as json_mod
+        import tempfile
+        from pathlib import Path
+
+        async def main():
+            from app.db.database import AsyncSessionLocal
+            from app.models.book import Book
+            from app.models.book_chapter import BookChapter
+            from app.models.book_chunk import BookChunk
+            from app.pipeline import chunk_books
+            from app.services.chapter_service import sync_chapters_from_local
+
+            suffix = uuid.uuid4().hex[:8]
+            gid = 920000 + int(suffix[:4], 16) % 70000
+            body = self._book_body()
+            # 新版原文只有 2 章（旧库中该书有 3 章，模拟章节收缩）
+            new_content = f"CHAPTER I.\n\n{body}\n\nCHAPTER II.\n\n{body}"
+
+            async with AsyncSessionLocal() as db:
+                book = Book(
+                    gutenberg_id=gid, title=f"IdemTest {suffix}", author="tester",
+                    year=2000, genre="test", synopsis="", language="en",
+                    source_url="http://test", word_count=1000,
+                )
+                db.add(book)
+                await db.commit()
+                await db.refresh(book)
+                book_id = book.id
+                chapters = []
+                for i in range(1, 4):
+                    ch = BookChapter(
+                        book_id=book_id, chapter_index=i, title=f"Old {i}",
+                        content=f"old chapter {i} text " * 200, word_count=600,
+                    )
+                    db.add(ch)
+                    chapters.append(ch)
+                await db.commit()
+                for ch in chapters:
+                    await db.refresh(ch)
+                    db.add(BookChunk(
+                        book_id=book_id, chapter_id=ch.id, chunk_index=0,
+                        chunk_text=f"old chunk {ch.chapter_index}",
+                        embedding=[0.1] * 1024,  # 模拟已有向量
+                    ))
+                await db.commit()
+            try:
+                with tempfile.TemporaryDirectory() as tmp:
+                    book_dir = Path(tmp) / f"book{gid}"
+                    book_dir.mkdir()
+                    (book_dir / "info.json").write_text(
+                        json_mod.dumps({"gutenberg_id": gid, "title": f"IdemTest {suffix}"}),
+                        encoding="utf-8",
+                    )
+                    (book_dir / "content.txt").write_text(new_content, encoding="utf-8")
+                    stats = await sync_chapters_from_local(books_dir=Path(tmp), only_ids={gid})
+                assert stats["chapters"] == 2  # 重新切分为 2 章
+
+                await chunk_books([gid])  # 流水线第 3 步：重建分块
+
+                async with AsyncSessionLocal() as db:
+                    chs = (await db.execute(
+                        select(BookChapter).where(BookChapter.book_id == book_id)
+                    )).scalars().all()
+                    assert {c.chapter_index for c in chs} == {1, 2}  # 第 3 章已删
+                    chunks = (await db.execute(
+                        select(BookChunk).where(BookChunk.book_id == book_id)
+                    )).scalars().all()
+                    live_ids = {c.id for c in chs}
+                    # 无孤儿分块：所有 chunk 都挂在现存章节上
+                    assert all(c.chapter_id in live_ids for c in chunks)
+                    # 旧向量不残留：重建后的分块等待向量化（embedding 全为 NULL）
+                    assert all(c.embedding is None for c in chunks)
+                    assert len(chunks) >= 2
+            finally:
+                await self._cleanup_book(book_id)
+
+        _run(main())
+
+    def test_chunk_fk_guard_and_orphan_sweep(self):
+        """FK 防线验证 + 兜底清扫：
+
+        - book_chunks.chapter_id 外键（无级联）阻止「删章节留孤儿分块」——
+          数据库层面保证不产生孤儿向量（这也是历史上章节收缩路径会 FK 报错的根因，
+          现已由 sync_chapters 级联清理分块修复）
+        - chunk_books 的孤儿清扫语句对正常数据无副作用
+        """
+        async def main():
+            from app.db.database import AsyncSessionLocal
+            from app.models.book import Book
+            from app.models.book_chapter import BookChapter
+            from app.models.book_chunk import BookChunk
+            from app.pipeline import chunk_books
+
+            suffix = uuid.uuid4().hex[:8]
+            gid = 920000 + int(suffix[:4], 16) % 70000
+            async with AsyncSessionLocal() as db:
+                book = Book(
+                    gutenberg_id=gid, title=f"OrphanTest {suffix}", author="tester",
+                    year=2000, genre="test", synopsis="", language="en",
+                    source_url="http://test", word_count=1000,
+                )
+                db.add(book)
+                await db.commit()
+                await db.refresh(book)
+                book_id = book.id
+                ch1 = BookChapter(
+                    book_id=book_id, chapter_index=1, title="C1",
+                    content="chapter one " * 200, word_count=400,
+                )
+                db.add(ch1)
+                await db.commit()
+                await db.refresh(ch1)
+                db.add(BookChunk(
+                    book_id=book_id, chapter_id=ch1.id, chunk_index=0,
+                    chunk_text="c1 chunk", embedding=[0.2] * 1024,
+                ))
+                await db.commit()
+
+                # 外键防线：章节仍有分块时直接删除章节必须被数据库拒绝
+                with pytest.raises(Exception, match="book_chunks_chapter_id_fkey"):
+                    await db.delete(ch1)
+                    await db.commit()
+                await db.rollback()
+
+            try:
+                # 兜底清扫对正常数据无副作用：合法章节与其分块保持原样
+                await chunk_books([gid])
+                async with AsyncSessionLocal() as db:
+                    remain = (await db.execute(
+                        select(BookChunk).where(BookChunk.book_id == book_id)
+                    )).scalars().all()
+                    assert remain  # 正文被重建为多个分块
+                    chs = (await db.execute(
+                        select(BookChapter).where(BookChapter.book_id == book_id)
+                    )).scalars().all()
+                    assert {c.chapter_index for c in chs} == {1}
+                    live_ids = {c.id for c in chs}
+                    # 全部挂在现存章节上，且重建后向量等待补算
+                    assert all(c.chapter_id in live_ids for c in remain)
+                    assert all(c.embedding is None for c in remain)
+            finally:
+                await self._cleanup_book(book_id)
+
+        _run(main())
+
+
 # ================= HTTP 集成（需要后端运行中） =================
 
 
