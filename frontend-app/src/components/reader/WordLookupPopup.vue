@@ -2,7 +2,7 @@
 // 点词查义浮层：展示单词释义卡片，支持收录到生词本
 import type { LookupPop } from '../../types'
 
-defineProps<{ lookup: LookupPop }>()
+defineProps<{ lookup: LookupPop; showSave?: boolean }>()
 defineEmits<{ close: []; save: [] }>()
 </script>
 
@@ -37,7 +37,7 @@ defineEmits<{ close: []; save: [] }>()
         <p class="text-ink">{{ lookup.data.example_en }}</p>
         <p v-if="lookup.data.example_cn" class="text-soft mt-1">{{ lookup.data.example_cn }}</p>
       </div>
-      <button @click="$emit('save')" :disabled="lookup.saved"
+      <button v-if="showSave" @click="$emit('save')" :disabled="lookup.saved"
         class="mt-3 w-full py-2 rounded-xl text-xs font-semibold transition"
         :class="lookup.saved
           ? 'bg-emerald-50 text-emerald-600 cursor-default'

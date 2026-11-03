@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     LOGIN_FAIL_LIMIT: int = 5
     LOGIN_FAIL_WINDOW_SECONDS: int = 900
 
+    # 个人电子书（用户上传的私人阅读材料，与公共书库完全隔离）
+    PERSONAL_BOOKS_DIR: str = "data/personal"   # 原始文件存放目录（data/ 已在 gitignore）
+    PERSONAL_MAX_UPLOAD_MB: int = 20            # 单个文件上限（MB）
+    PERSONAL_MAX_BOOKS_PER_USER: int = 20       # 每用户书籍数量上限
+    PERSONAL_MAX_TOTAL_MB_PER_USER: int = 200   # 每用户占用空间上限（MB）
+
 
 @lru_cache
 def get_settings() -> Settings:

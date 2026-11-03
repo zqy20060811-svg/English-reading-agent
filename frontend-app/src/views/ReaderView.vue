@@ -5,7 +5,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, LAST_BOOK_KEY, apiErrorMessage } from '../api/client'
 import { loadBooks, store, toast } from '../store'
-import type { Book, BookmarkItem, BookInteraction, Chapter, ChapterMeta, LookupPop, QAItem, ReadingProgress, SelBubble, WordLookup } from '../types'
+import type { Book, BookmarkItem, BookInteraction, Chapter, ChapterMeta, LookupPop, PersonalBook, QAItem, ReadingProgress, SelBubble, WordLookup } from '../types'
 import { extractWordAt } from '../utils/wordExtract'
 import AiDrawer from '../components/reader/AiDrawer.vue'
 import AiFab from '../components/reader/AiFab.vue'
@@ -17,6 +17,10 @@ const route = useRoute()
 const router = useRouter()
 
 const bookId = ref<number | null>(null)
+// 个人书籍来源（/read/personal/:bookId）：API 走 /personal/books，隐藏公共书专属功能
+const isPersonal = computed(() => route.name === 'reader-personal')
+const base = computed(() => (isPersonal.value ? '/personal/books' : '/books'))
+const personalBooks = ref<PersonalBook[]>([])
 const chapters = ref<ChapterMeta[]>([])
 const chapter = ref<(Chapter & { word_count: number }) | null>(null)
 const loadingChapter = ref(false)
@@ -39,7 +43,21 @@ const pageTranslation = ref('')
 
 const shellHeight = 'max(480px, calc(100vh - 200px))' // 矮视口下保底高度，避免每列字数过少
 
-const book = computed<Book | null>(() => store.books.find(b => b.id === bookId.value) || null)
+const book = computed<Book | PersonalBook | null>(() =>
+  isPersonal.value
+    ? personalBooks.value.find(b => b.id === bookId.value) || null
+    : store.books.find(b => b.id === bookId.value) || null)
+
+// 顶部书籍信息行：公共书显示 作者/年份/词数，个人书显示 作者/语言/词数
+const bookMetaLine = computed(() => {
+  const b = book.value
+  if (!b) return ''
+  if (isPersonal.value) {
+    return `${b.author ? b.author + ' · ' : ''}${b.language.toUpperCase()} · ${(b.word_count / 10000).toFixed(1)} 万词`
+  }
+  const pub = b as Book
+  return `${pub.author} · ${pub.year}${pub.word_count ? ` · ${(pub.word_count / 10000).toFixed(1)} 万词` : ''}`
+})
 const percent = computed(() =>
   chapter.value && chapters.value.length ? (chapter.value.chapter_index / chapters.value.length) * 100 : 0)
 
@@ -61,13 +79,30 @@ async function loadMyBooks(): Promise<void> {
   } catch { /* 拉取失败时下拉留空，提示去书库选书 */ }
 }
 
-onMounted(async () => {
+// 个人书籍下拉数据源
+async function loadPersonalBooks(): Promise<void> {
   try {
-    await loadBooks()
+    personalBooks.value = await api<PersonalBook[]>('/personal/books')
   } catch (err) {
-    toast('书库加载失败：' + apiErrorMessage(err))
+    toast('个人书籍加载失败：' + apiErrorMessage(err))
   }
-  await loadMyBooks()
+}
+
+// 顶部选书下拉的数据源：个人模式用上传列表，公共模式用我的书单
+const selectList = computed<{ id: number; title: string }[]>(() =>
+  isPersonal.value ? personalBooks.value : myBooks.value)
+
+onMounted(async () => {
+  if (isPersonal.value) {
+    await loadPersonalBooks()
+  } else {
+    try {
+      await loadBooks()
+    } catch (err) {
+      toast('书库加载失败：' + apiErrorMessage(err))
+    }
+    await loadMyBooks()
+  }
   const param = parseInt(route.params.bookId as string)
   if (param) {
     await onBookChange(param, 0) // 0 = 读服务端进度
@@ -84,17 +119,17 @@ async function onBookChange(id: number, chapterIndex = 1): Promise<void> {
   chapterError.value = ''
   if (!id) return
   // 当前书保证出现在下拉里（首次从书库进入时可能还没有互动记录）
-  if (!myBooks.value.some(b => b.id === id)) {
+  if (!isPersonal.value && !myBooks.value.some(b => b.id === id)) {
     const b = store.books.find(x => x.id === id)
     if (b) myBooks.value = [...myBooks.value, b]
   }
   try {
-    chapters.value = await api<ChapterMeta[]>(`/books/${id}/chapters`)
+    chapters.value = await api<ChapterMeta[]>(`${base.value}/${id}/chapters`)
     // 未指定章节：优先服务端进度（章节 + 页内断点），兜底第 1 章
     let resumePage = 0
     if (!chapterIndex || chapterIndex < 1) {
       try {
-        const p = await api<ReadingProgress>(`/reading/progress/${id}`)
+        const p = await api<ReadingProgress>(`${base.value}/${id}/progress`)
         chapterIndex = Math.min(p.chapter_index, chapters.value.length) || 1
         resumePage = p.page_index || 0
       } catch {
@@ -102,8 +137,10 @@ async function onBookChange(id: number, chapterIndex = 1): Promise<void> {
       }
     }
     await loadChapter(chapterIndex, resumePage)
-    loadInteraction() // 点赞/收藏状态与计数（失败静默）
-    loadBookmarks() // 书签列表（失败静默）
+    if (!isPersonal.value) {
+      loadInteraction() // 点赞/收藏状态与计数（失败静默）
+      loadBookmarks() // 书签列表（失败静默）
+    }
   } catch (err) {
     toast('章节目录加载失败：' + apiErrorMessage(err))
   }
@@ -111,7 +148,7 @@ async function onBookChange(id: number, chapterIndex = 1): Promise<void> {
 
 function onSelectChange(e: Event): void {
   const id = parseInt((e.target as HTMLSelectElement).value)
-  if (id) router.replace({ name: 'reader', params: { bookId: String(id) } })
+  if (id) router.replace({ name: isPersonal.value ? 'reader-personal' : 'reader', params: { bookId: String(id) } })
   onBookChange(id)
 }
 
@@ -122,7 +159,7 @@ async function loadChapter(index: number, startPage = 0): Promise<void> {
   loadingChapter.value = true
   chapterError.value = ''
   try {
-    const data = await api<Chapter & { word_count: number }>(`/books/${bookId.value}/chapters/${index}`)
+    const data = await api<Chapter & { word_count: number }>(`${base.value}/${bookId.value}/chapters/${index}`)
     chapter.value = data
     pageTranslation.value = ''
     loadingChapter.value = false // 先退出加载态，正文 DOM 挂载后才能测量分页
@@ -135,9 +172,12 @@ async function loadChapter(index: number, startPage = 0): Promise<void> {
       updatePageUI()
     }
     saveProgress()
-    localStorage.setItem(LAST_BOOK_KEY, JSON.stringify({
-      book_id: bookId.value, chapter_index: data.chapter_index, percent: percent.value,
-    }))
+    // 最近阅读位置仅记录公共书：书架「继续阅读」按公共书路由恢复，避免个人书 id 撞公共书
+    if (!isPersonal.value) {
+      localStorage.setItem(LAST_BOOK_KEY, JSON.stringify({
+        book_id: bookId.value, chapter_index: data.chapter_index, percent: percent.value,
+      }))
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' })
   } catch (err) {
     chapterError.value = apiErrorMessage(err) // 阅读框内展示失败态，支持重试
@@ -154,7 +194,7 @@ function retryChapter(): void {
 async function saveProgress(): Promise<void> {
   if (!chapter.value || !bookId.value) return
   try {
-    await api(`/reading/progress/${bookId.value}`, {
+    await api(`${base.value}/${bookId.value}/progress`, {
       method: 'PUT',
       body: {
         chapter_index: chapter.value.chapter_index,
@@ -177,7 +217,8 @@ const prevChapter = () => chapter.value && loadChapter(chapter.value.chapter_ind
 
 function reportFinish(): void {
   // 进入下一章视为读完当前章：上报热度事件（同人同书每日限计 1 次，失败静默）
-  if (!bookId.value || !chapter.value) return
+  // 热度是公共书库概念，个人书籍不上报
+  if (!bookId.value || !chapter.value || isPersonal.value) return
   api(`/books/${bookId.value}/events`, {
     method: 'POST',
     body: { event_type: 'finish_chapter' },
@@ -343,6 +384,10 @@ async function translatePage(): Promise<void> {
 // ================= AI 问答（RAG，限定当前章节） =================
 async function askQuestion(question: string): Promise<void> {
   if (!chapter.value || !bookId.value) { toast('请先选择一本书和章节'); return }
+  if (isPersonal.value) {
+    qaHistory.value.push({ role: 'err', text: '个人书籍的 AI 问答还在路上，敬请期待（当前可使用划句翻译与点词查义）' })
+    return
+  }
   if (!question || qaSending.value) return
   qaSending.value = true
   qaHistory.value.push({ role: 'me', text: question })
@@ -391,6 +436,7 @@ async function onContentClick(e: MouseEvent): Promise<void> {
 async function saveToVocabulary(): Promise<void> {
   const l = lookup.value
   if (!l || !bookId.value || !chapter.value || l.saved) return
+  if (isPersonal.value) { toast('个人书籍暂不支持收录生词本'); return }
   try {
     await api('/vocabulary', {
       method: 'POST',
@@ -534,12 +580,14 @@ async function removeBookmark(b: BookmarkItem): Promise<void> {
       <div class="relative">
         <select :value="bookId || ''" @change="onSelectChange"
           class="appearance-none pl-4 pr-9 py-2.5 rounded-2xl bg-white border border-neutral-200 outline-none text-sm focus:border-accent-500 cursor-pointer">
-          <option :value="''" disabled>{{ myBooks.length ? '我的书单...' : '暂无书单，去书库挑一本吧' }}</option>
-          <option v-for="b in myBooks" :key="b.id" :value="b.id">{{ b.title }}</option>
+          <option :value="''" disabled>{{ isPersonal
+            ? (personalBooks.length ? '我的上传...' : '暂无个人书籍，去「我的上传」导入')
+            : (myBooks.length ? '我的书单...' : '暂无书单，去书库挑一本吧') }}</option>
+          <option v-for="b in selectList" :key="b.id" :value="b.id">{{ b.title }}</option>
         </select>
         <i class="fa fa-angle-down absolute right-3.5 top-1/2 -translate-y-1/2 text-soft pointer-events-none"></i>
       </div>
-      <div v-if="book" class="text-xs text-soft">{{ book.author }} · {{ book.year }}{{ book.word_count ? ` · ${(book.word_count / 10000).toFixed(1)} 万词` : '' }}</div>
+      <div v-if="book" class="text-xs text-soft">{{ bookMetaLine }}</div>
       <div class="ml-auto flex items-center gap-2">
         <button @click="prevChapter" :disabled="!chapter || chapter.chapter_index <= 1"
           class="px-4 py-2.5 rounded-2xl bg-white border border-neutral-200 text-sm hover:border-accent-400 transition disabled:opacity-40">
@@ -582,10 +630,10 @@ async function removeBookmark(b: BookmarkItem): Promise<void> {
       <!-- 空态 -->
       <div v-if="!bookId && !loadingChapter" class="flex-1 flex-col items-center justify-center text-soft flex">
         <i class="fa fa-book text-4xl opacity-30"></i>
-        <p class="mt-4 text-sm">从书库挑一本书，开始阅读吧</p>
-        <button @click="router.push('/')"
+        <p class="mt-4 text-sm">{{ isPersonal ? '从「我的上传」导入一本 EPUB / TXT 开始阅读' : '从书库挑一本书，开始阅读吧' }}</p>
+        <button @click="router.push(isPersonal ? { name: 'upload' } : { name: 'library' })"
           class="mt-4 px-5 py-2 rounded-full bg-accent-500 text-white text-xs font-semibold hover:bg-accent-600 transition">
-          <i class="fa fa-th-large mr-1.5"></i>去书库选书
+          <i class="fa mr-1.5" :class="isPersonal ? 'fa-cloud-upload' : 'fa-th-large'"></i>{{ isPersonal ? '去上传书籍' : '去书库选书' }}
         </button>
       </div>
       <!-- 加载中 -->
@@ -610,14 +658,14 @@ async function removeBookmark(b: BookmarkItem): Promise<void> {
             <h1 class="text-xl lg:text-2xl font-extrabold mt-1">第 {{ chapter.chapter_index }} 章 {{ chapter.title }}</h1>
           </div>
           <div class="ml-auto flex items-center gap-2">
-            <button @click="toggleBookmark" :title="pageBookmarked ? '移除本页书签' : '给本页加书签'"
+            <button v-if="!isPersonal" @click="toggleBookmark" :title="pageBookmarked ? '移除本页书签' : '给本页加书签'"
               class="px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-medium transition"
               :class="pageBookmarked
                 ? 'bg-accent-50 border-accent-400 text-accent-600'
                 : 'bg-white border-neutral-200 text-neutral-500 hover:border-accent-400 hover:text-accent-600'">
               <i class="fa" :class="pageBookmarked ? 'fa-bookmark' : 'fa-bookmark-o'"></i><span class="hidden sm:inline ml-1.5">书签</span>
             </button>
-            <button @click="toggleLike"
+            <button v-if="!isPersonal" @click="toggleLike"
               class="px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-medium transition"
               :class="liked
                 ? 'bg-accent-50 border-accent-400 text-accent-600'
@@ -625,7 +673,7 @@ async function removeBookmark(b: BookmarkItem): Promise<void> {
               <i class="fa" :class="liked ? 'fa-heart' : 'fa-heart-o'"></i><span class="hidden sm:inline ml-1.5">点赞</span>
               <span class="sm:hidden ml-1">{{ likeCount }}</span>
             </button>
-            <button @click="toggleFavorite"
+            <button v-if="!isPersonal" @click="toggleFavorite"
               class="px-3 py-1.5 rounded-xl border text-xs font-medium transition"
               :class="favorited
                 ? 'bg-accent-50 border-accent-400 text-accent-600'
@@ -690,7 +738,7 @@ async function removeBookmark(b: BookmarkItem): Promise<void> {
     @ask="askQuestion" @translate-page="translatePage" />
 
   <!-- ============ 点词查义浮层 ============ -->
-  <WordLookupPopup v-if="lookup" :lookup="lookup" @close="lookup = null" @save="saveToVocabulary" />
+  <WordLookupPopup v-if="lookup" :lookup="lookup" :show-save="!isPersonal" @close="lookup = null" @save="saveToVocabulary" />
 
   <!-- ============ 划句翻译浮层 ============ -->
   <SelectionTranslatePopup :bar="selBar" :result="selResult" :translating="selTranslating"

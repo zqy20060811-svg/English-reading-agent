@@ -7,6 +7,9 @@ const routes = [
   { path: '/', name: 'library', component: () => import('../views/LibraryView.vue') },
   { path: '/rank', name: 'rank', component: () => import('../views/RankView.vue') },
   { path: '/shelf', name: 'shelf', component: () => import('../views/ShelfView.vue') },
+  { path: '/upload', name: 'upload', component: () => import('../views/UploadView.vue') },
+  // 个人书籍阅读器：与公共书同组件，按路由名切换 API 来源（/personal/books）
+  { path: '/read/personal/:bookId', name: 'reader-personal', component: () => import('../views/ReaderView.vue') },
   { path: '/read/:bookId?', name: 'reader', component: () => import('../views/ReaderView.vue') },
   { path: '/test', name: 'test', component: () => import('../views/TestView.vue') },
   { path: '/translate', name: 'translate', component: () => import('../views/TranslateView.vue') },

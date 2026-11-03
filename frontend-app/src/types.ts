@@ -133,6 +133,25 @@ export interface UserInfo {
   created_at: string
 }
 
+// ============ 个人上传书籍（/personal/books） ============
+
+export interface PersonalBook {
+  id: number
+  title: string
+  author: string
+  language: string
+  source_type: string // 'epub' | 'txt'
+  original_filename: string
+  file_size: number
+  word_count: number
+  chapter_count: number
+  created_at: string
+}
+
+export interface PersonalBookUploadOut extends PersonalBook {
+  duplicated: boolean // true = 命中同人同文件，复用已有记录
+}
+
 // ============ 管理后台 ============
 
 export interface AdminBook {

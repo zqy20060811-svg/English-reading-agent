@@ -58,6 +58,7 @@ let refreshingPromise: Promise<boolean> | null = null
 interface ApiOptions {
   method?: string
   body?: unknown
+  form?: FormData // multipart 上传：设置后忽略 body，由浏览器自动生成 Content-Type 边界
 }
 
 // 统一 API 错误：携带 HTTP 状态码与后端错误码，message 为可直接展示的中文文案
@@ -99,15 +100,14 @@ export function apiErrorMessage(err: unknown): string {
   return String(err)
 }
 
-export async function api<T = any>(path: string, { method = 'GET', body }: ApiOptions = {}): Promise<T> {
+export async function api<T = any>(path: string, { method = 'GET', body, form }: ApiOptions = {}): Promise<T> {
   const doFetch = (): Promise<Response> =>
     fetch(API_BASE + path, {
       method,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + getToken(),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: form
+        ? { Authorization: 'Bearer ' + getToken() }
+        : { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
+      body: form ?? (body === undefined ? undefined : JSON.stringify(body)),
     })
 
   let resp: Response
