@@ -103,3 +103,22 @@ export interface QAItem {
   text: string
   scope?: string
 }
+
+// 点词查义浮层状态
+export interface LookupPop {
+  word: string
+  sentence: string
+  x: number
+  y: number
+  loading: boolean
+  data: WordLookup | null
+  error: string
+  saved: boolean
+}
+
+// 划句翻译浮层定位
+export interface SelBubble {
+  x: number
+  y: number
+  text: string
+}

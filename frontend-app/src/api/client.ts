@@ -60,6 +60,45 @@ interface ApiOptions {
   body?: unknown
 }
 
+// 统一 API 错误：携带 HTTP 状态码与后端错误码，message 为可直接展示的中文文案
+export class ApiError extends Error {
+  status: number
+  code: string
+
+  constructor(message: string, status: number, code = 'unknown') {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.code = code
+  }
+}
+
+// 把后端 detail（字符串 / FastAPI 校验数组 / 对象）归一为可读文案
+function normalizeDetail(detail: unknown): string | null {
+  if (!detail) return null
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    const first = detail[0] as { msg?: unknown; field?: unknown } | undefined
+    if (first?.msg) return String(first.msg)
+  }
+  if (typeof detail === 'object' && 'message' in (detail as Record<string, unknown>)) {
+    return String((detail as Record<string, unknown>).message)
+  }
+  return null
+}
+
+// 从任意异常中提取可直接展示的文案（视图层统一用它替代 (err as Error).message）
+export function apiErrorMessage(err: unknown): string {
+  if (err instanceof ApiError) return err.message
+  if (err instanceof Error) {
+    // 网络层 fetch 失败（后端未启动 / 断网）没有状态码，给友好提示
+    return err.message.includes('Failed to fetch') || err.message.includes('NetworkError')
+      ? '无法连接服务器，请检查网络后重试'
+      : err.message
+  }
+  return String(err)
+}
+
 export async function api<T = any>(path: string, { method = 'GET', body }: ApiOptions = {}): Promise<T> {
   const doFetch = (): Promise<Response> =>
     fetch(API_BASE + path, {
@@ -71,21 +110,26 @@ export async function api<T = any>(path: string, { method = 'GET', body }: ApiOp
       body: body === undefined ? undefined : JSON.stringify(body),
     })
 
-  let resp = await doFetch()
+  let resp: Response
+  try {
+    resp = await doFetch()
+  } catch (err) {
+    throw new ApiError(apiErrorMessage(err), 0, 'network_error')
+  }
   if (resp.status === 401) {
     refreshingPromise = refreshingPromise || tryRefresh().finally(() => (refreshingPromise = null))
     const refreshed = await refreshingPromise
     if (!refreshed) {
       logout()
-      throw new Error('登录已过期')
+      throw new ApiError('登录已过期', 401, 'unauthorized')
     }
     resp = await doFetch() // 用新令牌重放原请求
   }
   const data = await resp.json().catch(() => ({}))
   if (!resp.ok) {
-    let msg: unknown = (data as { detail?: unknown }).detail || `请求失败（${resp.status}）`
-    if (Array.isArray(msg)) msg = (msg[0] as { msg?: unknown }).msg
-    throw new Error(String(msg))
+    const d = data as { detail?: unknown; code?: unknown }
+    const msg = normalizeDetail(d.detail) || `请求失败（${resp.status}）`
+    throw new ApiError(msg, resp.status, typeof d.code === 'string' ? d.code : `http_${resp.status}`)
   }
   return data as T
 }

@@ -4,9 +4,10 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import BookCover from '../components/BookCover.vue'
 import ProgressBar from '../components/ProgressBar.vue'
-import { api, LAST_BOOK_KEY } from '../api/client'
-import { loadBooks, store, toast } from '../store'
+import { api, LAST_BOOK_KEY, apiErrorMessage } from '../api/client'
+import { loadBooks, store } from '../store'
 import type { Book, CoverBook, HistoryItem, LastBook } from '../types'
+import StateBlock from '../components/StateBlock.vue'
 
 const router = useRouter()
 
@@ -43,7 +44,8 @@ onMounted(async () => {
       }
     }
   } catch (err) {
-    toast('书架加载失败：' + (err as Error).message)
+    // 子任务已各自静默降级，仅在外层兜底记录（如 localStorage 异常）
+    console.warn('书架加载异常：' + apiErrorMessage(err))
   } finally {
     loading.value = false
   }
@@ -105,9 +107,7 @@ const hasContent = computed(() => history.value.length > 0 || shelfBooks.value.l
     <!-- ============ 正在读 ============ -->
     <section class="mt-9">
       <h2 class="text-2xl font-extrabold">正在读</h2>
-      <div v-if="loading" class="py-14 text-center text-soft">
-        <i class="fa fa-circle-o-notch fa-spin text-2xl"></i>
-      </div>
+      <StateBlock v-if="loading" status="loading" message="书架加载中..." />
       <div v-else-if="!history.length" class="py-8 text-sm text-soft">还没有阅读记录</div>
       <div v-else class="grid sm:grid-cols-2 xl:grid-cols-3 gap-x-8 gap-y-7 mt-5">
         <div v-for="h in history" :key="h.book_id" class="flex gap-4 cursor-pointer group" @click="openBook(h.book_id)">

@@ -2,25 +2,31 @@
 // 生词本：收藏的生词列表，展示来源书与上下文例句，支持移除
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { api } from '../api/client'
+import { api, apiErrorMessage } from '../api/client'
 import { toast } from '../store'
 import type { VocabItem } from '../types'
+import StateBlock from '../components/StateBlock.vue'
 
 const router = useRouter()
 
 const loading = ref(true)
+const error = ref('') // 加载失败信息（非空展示重试）
 const words = ref<VocabItem[]>([])
 const removing = ref<Set<number>>(new Set())
 
-onMounted(async () => {
+async function loadWords(): Promise<void> {
+  loading.value = true
+  error.value = ''
   try {
     words.value = await api<VocabItem[]>('/vocabulary')
   } catch (err) {
-    toast('生词本加载失败：' + (err as Error).message)
+    error.value = apiErrorMessage(err)
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(loadWords)
 
 async function removeWord(item: VocabItem) {
   if (removing.value.has(item.id)) return
@@ -30,7 +36,7 @@ async function removeWord(item: VocabItem) {
     words.value = words.value.filter(w => w.id !== item.id)
     toast(`已移除「${item.word}」`, 'ok')
   } catch (err) {
-    toast('移除失败：' + (err as Error).message)
+    toast('移除失败：' + apiErrorMessage(err))
   } finally {
     removing.value.delete(item.id)
   }
@@ -54,16 +60,10 @@ function formatDate(iso: string): string {
       </button>
     </div>
 
-    <div v-if="loading" class="py-20 text-center text-soft">
-      <i class="fa fa-circle-o-notch fa-spin text-2xl"></i>
-      <p class="mt-3 text-sm">加载中...</p>
-    </div>
+    <StateBlock v-if="loading" status="loading" />
+    <StateBlock v-else-if="error" status="error" :message="'生词本加载失败：' + error" @retry="loadWords" />
 
-    <div v-else-if="!words.length" class="py-20 text-center text-soft">
-      <i class="fa fa-language text-4xl"></i>
-      <p class="mt-4 text-sm">生词本还是空的</p>
-      <p class="mt-1 text-xs">阅读时点击生词，释义卡片里可一键收藏</p>
-    </div>
+    <StateBlock v-else-if="!words.length" status="empty" icon="fa-language" message="生词本还是空的" hint="阅读时点击生词，释义卡片里可一键收藏" />
 
     <div v-else class="mt-6 space-y-3">
       <div v-for="w in words" :key="w.id"

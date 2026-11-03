@@ -1,10 +1,17 @@
 <script setup lang="ts">
 // 阅读器：固定高度分页（CSS 多列平移）+ 章节目录 + AI 抽屉（问答 / 翻译本页）+ 可拖动悬浮按钮
+// 拆分后的子组件：AiDrawer / AiFab / BookmarkPanel / WordLookupPopup / SelectionTranslatePopup
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api, LAST_BOOK_KEY } from '../api/client'
+import { api, LAST_BOOK_KEY, apiErrorMessage } from '../api/client'
 import { loadBooks, store, toast } from '../store'
-import type { Book, BookmarkItem, BookInteraction, Chapter, ChapterMeta, QAItem, ReadingProgress, WordLookup } from '../types'
+import type { Book, BookmarkItem, BookInteraction, Chapter, ChapterMeta, LookupPop, QAItem, ReadingProgress, SelBubble, WordLookup } from '../types'
+import { extractWordAt } from '../utils/wordExtract'
+import AiDrawer from '../components/reader/AiDrawer.vue'
+import AiFab from '../components/reader/AiFab.vue'
+import BookmarkPanel from '../components/reader/BookmarkPanel.vue'
+import WordLookupPopup from '../components/reader/WordLookupPopup.vue'
+import SelectionTranslatePopup from '../components/reader/SelectionTranslatePopup.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -13,6 +20,7 @@ const bookId = ref<number | null>(null)
 const chapters = ref<ChapterMeta[]>([])
 const chapter = ref<(Chapter & { word_count: number }) | null>(null)
 const loadingChapter = ref(false)
+const chapterError = ref('') // 章节加载失败信息（非空时展示重试按钮）
 
 // 分页状态
 const PAGE_GAP = 64
@@ -25,9 +33,7 @@ const pagesInner = ref<HTMLElement | null>(null)
 const drawerOpen = ref(false)
 const aiTab = ref<'qa' | 'tr'>('qa')
 const qaHistory = ref<QAItem[]>([]) // [{ role: 'me'|'ai'|'err', text, scope }]
-const qaInput = ref('')
 const qaSending = ref(false)
-const qaList = ref<HTMLElement | null>(null)
 const translating = ref(false)
 const pageTranslation = ref('')
 
@@ -59,7 +65,7 @@ onMounted(async () => {
   try {
     await loadBooks()
   } catch (err) {
-    toast('书库加载失败：' + (err as Error).message)
+    toast('书库加载失败：' + apiErrorMessage(err))
   }
   await loadMyBooks()
   const param = parseInt(route.params.bookId as string)
@@ -75,6 +81,7 @@ async function onBookChange(id: number, chapterIndex = 1): Promise<void> {
   qaHistory.value = []
   pageTranslation.value = ''
   bookmarks.value = []
+  chapterError.value = ''
   if (!id) return
   // 当前书保证出现在下拉里（首次从书库进入时可能还没有互动记录）
   if (!myBooks.value.some(b => b.id === id)) {
@@ -98,7 +105,7 @@ async function onBookChange(id: number, chapterIndex = 1): Promise<void> {
     loadInteraction() // 点赞/收藏状态与计数（失败静默）
     loadBookmarks() // 书签列表（失败静默）
   } catch (err) {
-    toast('章节目录加载失败：' + (err as Error).message)
+    toast('章节目录加载失败：' + apiErrorMessage(err))
   }
 }
 
@@ -113,6 +120,7 @@ async function loadChapter(index: number, startPage = 0): Promise<void> {
   if (!chapters.value.length || !bookId.value) return
   index = Math.max(1, Math.min(index, chapters.value.length))
   loadingChapter.value = true
+  chapterError.value = ''
   try {
     const data = await api<Chapter & { word_count: number }>(`/books/${bookId.value}/chapters/${index}`)
     chapter.value = data
@@ -132,10 +140,15 @@ async function loadChapter(index: number, startPage = 0): Promise<void> {
     }))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   } catch (err) {
-    toast('章节加载失败：' + (err as Error).message)
+    chapterError.value = apiErrorMessage(err) // 阅读框内展示失败态，支持重试
   } finally {
     loadingChapter.value = false
   }
+}
+
+function retryChapter(): void {
+  if (chapter.value) loadChapter(chapter.value.chapter_index)
+  else if (chapters.value.length) loadChapter(1)
 }
 
 async function saveProgress(): Promise<void> {
@@ -202,7 +215,7 @@ async function toggleLike(): Promise<void> {
     likeCount.value = d.like_count
     toast(d.liked ? '已点赞' : '已取消点赞', 'ok')
   } catch (err) {
-    toast('操作失败：' + (err as Error).message)
+    toast('操作失败：' + apiErrorMessage(err))
   }
 }
 
@@ -214,7 +227,7 @@ async function toggleFavorite(): Promise<void> {
     favCount.value = d.favorite_count
     toast(d.favorited ? '已加入收藏' : '已取消收藏', 'ok')
   } catch (err) {
-    toast('操作失败：' + (err as Error).message)
+    toast('操作失败：' + apiErrorMessage(err))
   }
 }
 
@@ -252,6 +265,27 @@ function prevPage(): void {
 function nextPage(): void {
   if (page.value < pages.value - 1) { page.value++; updatePageUI(); saveProgressDebounced() }
   else if (chapter.value && chapter.value.chapter_index < chapters.value.length) nextChapter()
+}
+
+// 移动端左右滑动翻页：水平位移超过阈值即翻页，选中文字时不触发
+const SWIPE_MIN = 60
+let touchStart: { x: number; y: number } | null = null
+
+function onTouchStart(e: TouchEvent): void {
+  if (e.touches.length !== 1) { touchStart = null; return }
+  touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+}
+
+function onTouchEnd(e: TouchEvent): void {
+  if (!touchStart) return
+  const t = e.changedTouches[0]
+  const dx = t.clientX - touchStart.x
+  const dy = t.clientY - touchStart.y
+  touchStart = null
+  if (Math.abs(dx) < SWIPE_MIN || Math.abs(dx) < Math.abs(dy) * 2) return // 垂直滚动不误触
+  if (window.getSelection()?.toString()) return // 划词选中文本时不翻页
+  if (dx < 0) nextPage()
+  else prevPage()
 }
 
 let resizeTimer: ReturnType<typeof setTimeout> | undefined
@@ -300,20 +334,18 @@ async function translatePage(): Promise<void> {
     const result = await api<{ translation: string }>('/translate', { method: 'POST', body: { text, target_lang: '中文' } })
     pageTranslation.value = result.translation
   } catch (err) {
-    toast('翻译失败：' + (err as Error).message)
+    toast('翻译失败：' + apiErrorMessage(err))
   } finally {
     translating.value = false
   }
 }
 
 // ================= AI 问答（RAG，限定当前章节） =================
-async function askQuestion(): Promise<void> {
+async function askQuestion(question: string): Promise<void> {
   if (!chapter.value || !bookId.value) { toast('请先选择一本书和章节'); return }
-  const question = qaInput.value.trim()
   if (!question || qaSending.value) return
   qaSending.value = true
   qaHistory.value.push({ role: 'me', text: question })
-  qaInput.value = ''
   try {
     const result = await api<{ answer: string; scope: string }>('/ask/reading', {
       method: 'POST',
@@ -321,82 +353,22 @@ async function askQuestion(): Promise<void> {
     })
     qaHistory.value.push({ role: 'ai', text: result.answer, scope: result.scope })
   } catch (err) {
-    qaHistory.value.push({ role: 'err', text: '回答失败：' + (err as Error).message })
+    qaHistory.value.push({ role: 'err', text: '回答失败：' + apiErrorMessage(err) })
   } finally {
     qaSending.value = false
-    await nextTick()
-    if (qaList.value) qaList.value.scrollTop = qaList.value.scrollHeight
   }
-}
-
-function scopeLabel(scope: string | undefined): string | null {
-  if (scope === 'chapter') return '依据：本章内容'
-  if (scope === 'book') return '依据：本章 + 全书检索'
-  if (scope === 'none') return '未找到相关依据'
-  return null
 }
 
 // ================= 点词查义（点击正文单词弹出释义卡片） =================
-interface LookupPop {
-  word: string
-  sentence: string
-  x: number
-  y: number
-  loading: boolean
-  data: WordLookup | null
-  error: string
-  saved: boolean
-}
-
 const lookup = ref<LookupPop | null>(null)
 const savedWords = new Set<string>() // 本次会话已收录的词（提示口径用）
-
-// 定位点击处的单词与其所在句子（caretRangeFromPoint 兼容 Chrome/Safari，Firefox 走 caretPositionFromPoint）
-function extractWordAt(x: number, y: number): { word: string; sentence: string } | null {
-  const doc = document as Document & {
-    caretRangeFromPoint?: (x: number, y: number) => Range | null
-    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null
-  }
-  let node: Node | null = null
-  let offset = 0
-  if (doc.caretRangeFromPoint) {
-    const r = doc.caretRangeFromPoint(x, y)
-    node = r?.startContainer ?? null
-    offset = r?.startOffset ?? 0
-  } else if (doc.caretPositionFromPoint) {
-    const p = doc.caretPositionFromPoint(x, y)
-    node = p?.offsetNode ?? null
-    offset = p?.offset ?? 0
-  }
-  if (!node || node.nodeType !== Node.TEXT_NODE) return null
-  const text = node.textContent || ''
-  if (offset >= text.length) return null
-  const isWordChar = (ch: string): boolean => /[A-Za-z'-]/.test(ch)
-  if (!isWordChar(text[offset])) return null
-  let s = offset
-  let e = offset
-  while (s > 0 && isWordChar(text[s - 1])) s--
-  while (e < text.length && isWordChar(text[e])) e++
-  const word = text.slice(s, e)
-  if (word.length < 2 || word.length > 40) return null
-  // 句子边界：向前找句号/问号/叹号，向后找句末标点
-  let ss = Math.max(text.lastIndexOf('. ', e), text.lastIndexOf('! ', e), text.lastIndexOf('? ', e), text.lastIndexOf('." ', e)) + 1
-  if (ss >= e) ss = 0
-  let se = text.length
-  for (const mark of ['. ', '! ', '? ', '." ']) {
-    const i = text.indexOf(mark, e)
-    if (i !== -1 && i < se) se = i + mark.length
-  }
-  const sentence = text.slice(ss, se).trim().slice(0, 400)
-  return { word, sentence }
-}
 
 async function onContentClick(e: MouseEvent): Promise<void> {
   selResult.value = null
   if (window.getSelection()?.toString()) return // 划词中不触发点词
   const target = e.target as HTMLElement
   if (!target.closest('p')) return // 只对正文段落生效（章末按钮等不受影响）
-  const hit = extractWordAt(e.clientX, e.clientY)
+  const hit = extractWordAt(document, e.clientX, e.clientY)
   if (!hit || !bookId.value || !chapter.value) return
   const word = hit.word.toLowerCase()
   const POP_W = 288
@@ -410,7 +382,7 @@ async function onContentClick(e: MouseEvent): Promise<void> {
     const data = await api<WordLookup>(`/lookup/word/${encodeURIComponent(word)}`)
     if (lookup.value && lookup.value.word === word) lookup.value.data = data
   } catch (err) {
-    if (lookup.value && lookup.value.word === word) lookup.value.error = (err as Error).message
+    if (lookup.value && lookup.value.word === word) lookup.value.error = apiErrorMessage(err)
   } finally {
     if (lookup.value && lookup.value.word === word) lookup.value.loading = false
   }
@@ -432,13 +404,13 @@ async function saveToVocabulary(): Promise<void> {
     l.saved = true
     toast('已收录到生词本', 'success')
   } catch (err) {
-    toast('收录失败：' + (err as Error).message)
+    toast('收录失败：' + apiErrorMessage(err))
   }
 }
 
 // ================= 划句翻译（选中正文句子浮现翻译按钮） =================
-const selBar = ref<{ x: number; y: number; text: string } | null>(null)
-const selResult = ref<{ x: number; y: number; text: string } | null>(null)
+const selBar = ref<SelBubble | null>(null)
+const selResult = ref<SelBubble | null>(null)
 const selTranslating = ref(false)
 
 let selTimer: ReturnType<typeof setTimeout> | undefined
@@ -479,7 +451,7 @@ async function translateSelection(): Promise<void> {
     })
     selResult.value = { x, y, text: r.translation }
   } catch (err) {
-    selResult.value = { x, y, text: '翻译失败：' + (err as Error).message }
+    selResult.value = { x, y, text: '翻译失败：' + apiErrorMessage(err) }
   } finally {
     selTranslating.value = false
   }
@@ -529,7 +501,7 @@ async function toggleBookmark(): Promise<void> {
       toast('已添加书签', 'success')
     }
   } catch (err) {
-    toast('书签操作失败：' + (err as Error).message)
+    toast('书签操作失败：' + apiErrorMessage(err))
   }
 }
 
@@ -549,52 +521,9 @@ async function removeBookmark(b: BookmarkItem): Promise<void> {
     bookmarks.value = bookmarks.value.filter(x => x.id !== b.id)
     toast('已删除书签', 'ok')
   } catch (err) {
-    toast('删除失败：' + (err as Error).message)
+    toast('删除失败：' + apiErrorMessage(err))
   }
 }
-
-// ================= 悬浮按钮拖动（位置记忆） =================
-const fab = ref<HTMLElement | null>(null)
-const fabStyle = ref<Record<string, string>>({})
-let dragMoved = false
-let drag: { sx: number; sy: number; ox: number; oy: number } | null = null
-const FAB_POS_KEY = 'era_ai_fab_pos'
-
-function onFabPointerDown(e: PointerEvent): void {
-  const r = fab.value!.getBoundingClientRect()
-  drag = { sx: e.clientX, sy: e.clientY, ox: r.left, oy: r.top }
-  fab.value!.setPointerCapture(e.pointerId)
-}
-
-function onFabPointerMove(e: PointerEvent): void {
-  if (!drag) return
-  const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy
-  if (Math.abs(dx) + Math.abs(dy) > 6) {
-    dragMoved = true
-    const x = Math.min(Math.max(8, drag.ox + dx), window.innerWidth - fab.value!.offsetWidth - 8)
-    const y = Math.min(Math.max(8, drag.oy + dy), window.innerHeight - fab.value!.offsetHeight - 8)
-    fabStyle.value = { left: x + 'px', top: y + 'px' }
-  }
-}
-
-function onFabPointerUp(): void {
-  if (dragMoved) {
-    localStorage.setItem(FAB_POS_KEY, JSON.stringify({ x: fab.value!.offsetLeft, y: fab.value!.offsetTop }))
-  }
-  drag = null
-}
-
-function onFabClick(): void {
-  if (dragMoved) { dragMoved = false; return }
-  drawerOpen.value = !drawerOpen.value
-}
-
-onMounted(() => {
-  try {
-    const saved = JSON.parse(localStorage.getItem(FAB_POS_KEY) || 'null')
-    if (saved && typeof saved.x === 'number') fabStyle.value = { left: saved.x + 'px', top: saved.y + 'px' }
-  } catch { /* 位置数据损坏则忽略 */ }
-})
 </script>
 
 <template>
@@ -647,28 +576,9 @@ onMounted(() => {
 
     <!-- 阅读框 -->
     <div class="rounded-3xl bg-white border border-neutral-100 shadow-card flex flex-col overflow-hidden relative" :style="{ height: shellHeight }">
-      <!-- 书签列表面板（本页书签可移除，其他页书签可跳转） -->
-      <div v-if="showBookmarks" class="absolute top-16 right-4 z-30 w-80 max-w-[85%] max-h-[70%] overflow-y-auto rounded-2xl bg-white border border-neutral-200 shadow-float p-3">
-        <div class="flex items-center justify-between px-1 pb-2">
-          <span class="text-xs font-bold text-ink"><i class="fa fa-bookmark mr-1 text-accent-500"></i>本书书签（{{ bookmarks.length }}）</span>
-          <button @click="showBookmarks = false" class="w-7 h-7 rounded-lg hover:bg-neutral-100 text-soft transition"><i class="fa fa-close text-xs"></i></button>
-        </div>
-        <div v-if="!bookmarks.length" class="px-1 py-4 text-xs text-soft">还没有书签，点击顶部「书签」按钮收藏当前页</div>
-        <div v-for="b in bookmarks" :key="b.id"
-          class="group flex items-start gap-2 p-2.5 rounded-xl hover:bg-neutral-50 transition cursor-pointer"
-          @click="jumpToBookmark(b)">
-          <i class="fa fa-bookmark text-accent-400 text-xs mt-1 shrink-0"></i>
-          <div class="min-w-0 flex-1">
-            <div class="text-[11px] text-soft">第 {{ b.chapter_index }} 章 · 第 {{ b.page_index + 1 }} 页</div>
-            <div class="text-xs text-ink leading-5 line-clamp-2">{{ b.excerpt || '（无摘要）' }}</div>
-          </div>
-          <button @click.stop="removeBookmark(b)"
-            title="删除书签"
-            class="shrink-0 w-7 h-7 rounded-lg text-neutral-300 hover:text-red-500 hover:bg-red-50 transition">
-            <i class="fa fa-trash text-xs"></i>
-          </button>
-        </div>
-      </div>
+      <!-- 书签列表面板 -->
+      <BookmarkPanel v-if="showBookmarks" :bookmarks="bookmarks"
+        @close="showBookmarks = false" @jump="jumpToBookmark" @remove="removeBookmark" />
       <!-- 空态 -->
       <div v-if="!bookId && !loadingChapter" class="flex-1 flex-col items-center justify-center text-soft flex">
         <i class="fa fa-book text-4xl opacity-30"></i>
@@ -681,6 +591,15 @@ onMounted(() => {
       <!-- 加载中 -->
       <div v-else-if="loadingChapter" class="flex-1 flex items-center justify-center text-soft text-sm">
         <i class="fa fa-circle-o-notch fa-spin mr-2"></i>加载中...
+      </div>
+      <!-- 加载失败：可重试 -->
+      <div v-else-if="chapterError" class="flex-1 flex-col items-center justify-center text-soft flex">
+        <i class="fa fa-exclamation-triangle text-4xl opacity-30"></i>
+        <p class="mt-4 text-sm">章节加载失败：{{ chapterError }}</p>
+        <button @click="retryChapter"
+          class="mt-4 px-5 py-2 rounded-full bg-accent-500 text-white text-xs font-semibold hover:bg-accent-600 transition">
+          <i class="fa fa-refresh mr-1.5"></i>重试
+        </button>
       </div>
 
       <!-- 正文 -->
@@ -718,7 +637,7 @@ onMounted(() => {
         </div>
 
         <div ref="pagesShell" class="flex-1 min-h-0 px-8 lg:px-10 pt-6 pb-14 overflow-hidden bg-[#FBF9F3]"
-          @click="onContentClick">
+          @click="onContentClick" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd">
           <div ref="pagesInner" class="prose-book text-[17px] text-ink will-change-transform h-full">
             <p v-for="(p, i) in chapter.content.split(/\n\s*\n/).filter(s => s.trim())" :key="i">{{ p.trim() }}</p>
 
@@ -765,136 +684,19 @@ onMounted(() => {
   </div>
 
   <!-- ============ AI 抽屉 ============ -->
-  <div class="fixed inset-y-0 right-0 w-[380px] max-w-[92vw] bg-white shadow-float z-50 flex flex-col transition-transform duration-300"
-    :class="drawerOpen ? 'translate-x-0' : 'translate-x-full'">
-    <div class="p-5 border-b border-neutral-100 flex items-center justify-between">
-      <div class="font-bold text-sm">AI 助手 <span class="text-[11px] text-soft font-normal">基于本章内容（RAG）</span></div>
-      <button @click="drawerOpen = false" class="w-8 h-8 rounded-lg hover:bg-neutral-100 text-soft transition">
-        <i class="fa fa-close"></i>
-      </button>
-    </div>
-
-    <div class="flex border-b border-neutral-100 text-sm">
-      <button @click="aiTab = 'qa'" class="flex-1 py-3 font-semibold border-b-2 transition"
-        :class="aiTab === 'qa' ? 'text-accent-600 border-accent-500' : 'text-soft border-transparent hover:text-accent-500'">
-        AI 问答
-      </button>
-      <button @click="aiTab = 'tr'" class="flex-1 py-3 font-semibold border-b-2 transition"
-        :class="aiTab === 'tr' ? 'text-accent-600 border-accent-500' : 'text-soft border-transparent hover:text-accent-500'">
-        翻译本页
-      </button>
-    </div>
-
-    <!-- 问答面板 -->
-    <div v-show="aiTab === 'qa'" class="flex-1 min-h-0 flex flex-col">
-      <div ref="qaList" class="flex-1 overflow-y-auto p-5 space-y-3">
-        <p v-if="!qaHistory.length" class="text-xs text-soft leading-6">
-          先选择书和章节，再提问效果最好。<br>例如：「这一章发生了什么？」「主人公为什么离开？」
-        </p>
-        <template v-for="(m, i) in qaHistory" :key="i">
-          <div v-if="m.role === 'me'" class="p-3 rounded-2xl rounded-br-md bg-accent-50 text-sm ml-8">{{ m.text }}</div>
-          <div v-else-if="m.role === 'ai'" class="mr-8">
-            <div class="p-3 rounded-2xl rounded-bl-md bg-neutral-50 border border-neutral-100 text-sm whitespace-pre-line leading-7">{{ m.text }}</div>
-            <div v-if="scopeLabel(m.scope)" class="px-1 pt-1 text-[11px] text-soft">
-              <i class="fa fa-search mr-1"></i>{{ scopeLabel(m.scope) }}
-            </div>
-          </div>
-          <div v-else class="p-3 rounded-2xl bg-red-50 text-sm text-red-600 mr-8">{{ m.text }}</div>
-        </template>
-        <div v-if="qaSending" class="p-3 rounded-2xl bg-neutral-50 text-sm text-soft mr-8 w-fit">
-          <i class="fa fa-circle-o-notch fa-spin mr-1"></i>AI 思考中...
-        </div>
-      </div>
-      <div class="p-4 border-t border-neutral-100 flex gap-2">
-        <input v-model="qaInput" @keydown.enter="askQuestion" placeholder="就本章内容提问..."
-          class="flex-1 px-3.5 py-2.5 rounded-2xl bg-neutral-50 border border-neutral-200 focus:border-accent-500 outline-none text-sm" />
-        <button @click="askQuestion" :disabled="qaSending"
-          class="px-4 rounded-2xl bg-accent-500 text-white text-sm hover:bg-accent-600 transition disabled:opacity-60">
-          <i class="fa fa-send"></i>
-        </button>
-      </div>
-    </div>
-
-    <!-- 翻译面板 -->
-    <div v-show="aiTab === 'tr'" class="flex-1 min-h-0 flex flex-col p-5 overflow-y-auto">
-      <button @click="translatePage" :disabled="translating"
-        class="w-full py-2.5 rounded-2xl bg-accent-500 text-white text-sm font-semibold hover:bg-accent-600 transition disabled:opacity-60">
-        <i v-if="translating" class="fa fa-circle-o-notch fa-spin mr-1"></i>
-        <i v-else class="fa fa-language mr-1"></i>
-        {{ translating ? '翻译中，约需十几秒...' : '翻译本页' }}
-      </button>
-      <div v-if="pageTranslation" class="mt-4 p-4 rounded-2xl bg-accent-50 border border-accent-100 text-sm leading-7 whitespace-pre-line">{{ pageTranslation }}</div>
-    </div>
-  </div>
+  <AiDrawer :open="drawerOpen" :tab="aiTab" :qa-history="qaHistory" :qa-sending="qaSending"
+    :translating="translating" :page-translation="pageTranslation"
+    @close="drawerOpen = false" @update:tab="aiTab = $event"
+    @ask="askQuestion" @translate-page="translatePage" />
 
   <!-- ============ 点词查义浮层 ============ -->
-  <div v-if="lookup" class="fixed z-[60] w-72 rounded-2xl bg-white border border-neutral-200 shadow-float p-4"
-    :style="{ left: lookup.x + 'px', top: lookup.y + 'px' }">
-    <div class="flex items-start justify-between gap-2">
-      <div class="min-w-0">
-        <div class="book-title text-lg font-bold leading-tight">{{ lookup.word }}</div>
-        <div v-if="lookup.data?.phonetic" class="text-xs text-soft mt-0.5">{{ lookup.data.phonetic }}</div>
-      </div>
-      <button @click="lookup = null" class="shrink-0 w-7 h-7 rounded-lg hover:bg-neutral-100 text-soft transition">
-        <i class="fa fa-close text-xs"></i>
-      </button>
-    </div>
-    <!-- 加载中 -->
-    <div v-if="lookup.loading" class="py-4 text-sm text-soft">
-      <i class="fa fa-circle-o-notch fa-spin mr-1"></i>查询释义中...
-    </div>
-    <!-- 查询失败 -->
-    <div v-else-if="lookup.error" class="py-3 text-sm text-red-500">
-      <i class="fa fa-exclamation-circle mr-1"></i>{{ lookup.error }}
-    </div>
-    <!-- 释义 -->
-    <template v-else-if="lookup.data">
-      <ul class="mt-2 space-y-1.5">
-        <li v-for="(s, i) in lookup.data.senses" :key="i" class="text-sm text-ink leading-6">
-          <span class="text-accent-500 mr-1">·</span>{{ s }}
-        </li>
-      </ul>
-      <div v-if="lookup.data.example_en" class="mt-3 p-2.5 rounded-xl bg-neutral-50 text-xs leading-5">
-        <p class="text-ink">{{ lookup.data.example_en }}</p>
-        <p v-if="lookup.data.example_cn" class="text-soft mt-1">{{ lookup.data.example_cn }}</p>
-      </div>
-      <button @click="saveToVocabulary" :disabled="lookup.saved"
-        class="mt-3 w-full py-2 rounded-xl text-xs font-semibold transition"
-        :class="lookup.saved
-          ? 'bg-emerald-50 text-emerald-600 cursor-default'
-          : 'bg-accent-500 text-white hover:bg-accent-600'">
-        <i class="fa mr-1.5" :class="lookup.saved ? 'fa-check' : 'fa-plus'"></i>
-        {{ lookup.saved ? '已在生词本中' : '收录到生词本' }}
-      </button>
-    </template>
-  </div>
+  <WordLookupPopup v-if="lookup" :lookup="lookup" @close="lookup = null" @save="saveToVocabulary" />
 
   <!-- ============ 划句翻译浮层 ============ -->
-  <div v-if="selBar" class="fixed z-[60] -translate-x-1/2 flex rounded-full bg-ink text-white shadow-float overflow-hidden"
-    :style="{ left: selBar.x + 'px', top: selBar.y + 'px' }">
-    <button @click="translateSelection" class="px-4 py-2 text-xs font-medium hover:bg-ink-700 transition whitespace-nowrap">
-      <i class="fa fa-language mr-1 text-accent-400"></i>翻译这句话
-    </button>
-  </div>
-  <div v-if="selResult" class="fixed z-[60] -translate-x-1/2 w-80 max-w-[90vw] rounded-2xl bg-white border border-neutral-200 shadow-float p-4"
-    :style="{ left: selResult.x + 'px', top: selResult.y + 'px' }">
-    <div class="flex items-start justify-between gap-2">
-      <span class="text-[11px] font-bold text-soft shrink-0"><i class="fa fa-language mr-1 text-accent-500"></i>译文</span>
-      <button @click="selResult = null" class="shrink-0 w-7 h-7 rounded-lg hover:bg-neutral-100 text-soft transition">
-        <i class="fa fa-close text-xs"></i>
-      </button>
-    </div>
-    <div v-if="selTranslating" class="py-2 text-sm text-soft"><i class="fa fa-circle-o-notch fa-spin mr-1"></i>翻译中...</div>
-    <p v-else class="text-sm text-ink leading-7 whitespace-pre-line">{{ selResult.text }}</p>
-  </div>
+  <SelectionTranslatePopup :bar="selBar" :result="selResult" :translating="selTranslating"
+    @translate="translateSelection" @close-result="selResult = null" />
 
   <!-- 悬浮按钮（可拖动 + 位置记忆） -->
-  <button v-show="!drawerOpen" ref="fab" @click="onFabClick"
-    @pointerdown="onFabPointerDown" @pointermove="onFabPointerMove" @pointerup="onFabPointerUp"
-    title="AI 助手（问答 / 翻译），可拖动"
-    class="fixed right-6 bottom-8 z-40 w-14 h-14 rounded-full bg-gradient-to-br from-accent-400 to-accent-600 text-white shadow-[0_14px_34px_rgba(255,107,44,.5)] flex items-center justify-center text-xl hover:scale-105 transition"
-    :style="{ ...fabStyle, touchAction: 'none', userSelect: 'none', cursor: 'grab' }">
-    <i class="fa fa-magic"></i>
-  </button>
+  <AiFab v-show="!drawerOpen" @toggle="drawerOpen = !drawerOpen" />
   </div>
 </template>

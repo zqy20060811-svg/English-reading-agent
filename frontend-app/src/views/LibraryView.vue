@@ -4,14 +4,16 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import BookCover from '../components/BookCover.vue'
 import ProgressBar from '../components/ProgressBar.vue'
-import { api, LAST_BOOK_KEY } from '../api/client'
+import { api, LAST_BOOK_KEY, apiErrorMessage } from '../api/client'
 import { genreCn } from '../genres'
-import { levelOf, LEVEL_NAMES, loadBooks, store, toast } from '../store'
+import { levelOf, LEVEL_NAMES, loadBooks, store } from '../store'
 import type { Book, LastBook } from '../types'
+import StateBlock from '../components/StateBlock.vue'
 
 const router = useRouter()
 
 const loading = ref(true)
+const error = ref('') // 书库加载失败信息（非空展示重试）
 const lastBook = ref<LastBook | null>(null)     // { book_id, chapter_index, percent }
 const lastBookData = ref<Book | null>(null) // 书目详情
 const genre = ref('全部')
@@ -27,9 +29,11 @@ watch([genre, level, search], () => {
   page.value = 1 // 切换筛选/搜索后回到第一页
 })
 
-onMounted(async () => {
+async function loadAll(): Promise<void> {
+  loading.value = true
+  error.value = ''
   try {
-    await loadBooks()
+    await loadBooks() // 失败时 booksLoaded 仍为 false，重试会重新拉取
     // 热门榜单（失败不影响书库展示）
     try {
       const hot = await api<{ book_id: number }[]>('/books/hot?limit=3')
@@ -44,11 +48,13 @@ onMounted(async () => {
       }
     } catch { /* 记录损坏则忽略 */ }
   } catch (err) {
-    toast('书库加载失败：' + (err as Error).message)
+    error.value = apiErrorMessage(err)
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(loadAll)
 
 const genres = computed(() => ['全部', ...new Set(store.books.map(b => b.genre).filter(Boolean))])
 // 难度等级筛选条目（固定五档，与书卡右下角角标同口径）
@@ -174,10 +180,8 @@ function openContinue() {
       </div>
 
       <!-- 书格：封面 + 衬线书名 + 作者 + 进度 -->
-      <div v-if="loading" class="py-20 text-center text-soft">
-        <i class="fa fa-circle-o-notch fa-spin text-2xl"></i>
-        <p class="mt-3 text-sm">书库加载中...</p>
-      </div>
+      <StateBlock v-if="loading" status="loading" message="书库加载中..." />
+      <StateBlock v-else-if="error" status="error" :message="'书库加载失败：' + error" @retry="loadAll" />
       <div v-else-if="!filtered.length" class="py-20 text-center text-soft text-sm">该筛选条件下暂无书籍</div>
       <template v-else>
         <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-x-8 gap-y-7 mt-6">

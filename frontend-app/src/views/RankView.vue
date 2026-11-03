@@ -3,11 +3,12 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import BookCover from '../components/BookCover.vue'
-import { api } from '../api/client'
-import { toast } from '../store'
+import { api, apiErrorMessage } from '../api/client'
+import StateBlock from '../components/StateBlock.vue'
 
 const router = useRouter()
 const loading = ref(true)
+const error = ref('') // 榜单加载失败信息（非空展示重试）
 const list = ref<HotItem[]>([]) // [{ rank, book_id, title, author, cover_url, score }]
 
 // /books/hot 返回的榜单条目
@@ -20,15 +21,19 @@ interface HotItem {
   score: number
 }
 
-onMounted(async () => {
+async function loadRank(): Promise<void> {
+  loading.value = true
+  error.value = ''
   try {
     list.value = await api<HotItem[]>('/books/hot?limit=50')
   } catch (err) {
-    toast('榜单加载失败：' + (err as Error).message)
+    error.value = apiErrorMessage(err)
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(loadRank)
 
 function openBook(bookId: number) {
   router.push({ name: 'reader', params: { bookId: String(bookId) } })
@@ -58,17 +63,10 @@ function badgeClass(rank: number): string {
       <span class="text-xs text-soft">共 {{ list.length }} 本上榜</span>
     </div>
 
-    <!-- 加载中 -->
-    <div v-if="loading" class="py-20 text-center text-soft">
-      <i class="fa fa-circle-o-notch fa-spin text-2xl"></i>
-      <p class="mt-3 text-sm">榜单加载中...</p>
-    </div>
-
-    <!-- 空榜单 -->
-    <div v-else-if="!list.length" class="py-20 text-center text-soft text-sm">
-      <i class="fa fa-line-chart text-3xl opacity-30"></i>
-      <p class="mt-3">暂无热度数据，先去读几页书吧</p>
-    </div>
+    <!-- 加载中 / 失败 / 空榜单 -->
+    <StateBlock v-if="loading" status="loading" message="榜单加载中..." />
+    <StateBlock v-else-if="error" status="error" :message="'榜单加载失败：' + error" @retry="loadRank" />
+    <StateBlock v-else-if="!list.length" status="empty" icon="fa-line-chart" message="暂无热度数据，先去读几页书吧" />
 
     <!-- 榜单 -->
     <div v-else class="mt-6 flex flex-col gap-3">
