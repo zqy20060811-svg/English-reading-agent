@@ -24,7 +24,11 @@ READING_SYSTEM_PROMPT = (
     "2. If the excerpts do not contain enough information to answer, say so "
     "explicitly (e.g. \"提供的片段中没有足够信息\") and briefly explain what is "
     "missing. Do NOT invent or supplement content that is not in the excerpts.\n"
-    "3. Reply in the same language as the user's question."
+    "3. Do NOT mention the excerpts, sources, or any evidence annotations "
+    "(e.g. \"Excerpt 1\", \"book_id\", \"chunk\", \"判断依据\", \"依据\"). "
+    "Give the answer directly as natural prose; quote book text only when it "
+    "helps the answer itself.\n"
+    "4. Reply in the same language as the user's question."
 )
 
 # 查询改写系统提示词：把用户问题转成英文检索查询（供全文检索路与跨语言向量召回）

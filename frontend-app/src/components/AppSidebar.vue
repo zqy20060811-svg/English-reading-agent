@@ -3,7 +3,6 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { store, levelText } from '../store'
-import { logout } from '../api/client'
 
 const route = useRoute()
 const router = useRouter()
@@ -18,11 +17,6 @@ const navs = [
 
 const activeName = computed(() => (route.name === 'library' || route.name === 'login' ? 'library' : route.name))
 const avatar = computed(() => (store.username[0] || 'R').toUpperCase())
-
-function onLogout() {
-  logout()
-  router.replace('/login')
-}
 </script>
 
 <template>
@@ -48,14 +42,16 @@ function onLogout() {
 
     <div class="flex-1"></div>
 
-    <!-- 退出 + 头像 -->
-    <button @click="onLogout" title="退出登录"
-      class="mb-3 w-11 h-11 rounded-2xl flex items-center justify-center text-neutral-400 hover:text-white hover:bg-ink-700 transition">
-      <i class="fa fa-sign-out"></i>
+    <!-- 设置 + 头像 -->
+    <button @click="router.push({ name: 'settings' })" title="设置"
+      class="mb-3 w-11 h-11 rounded-2xl flex items-center justify-center text-lg transition"
+      :class="activeName === 'settings' ? 'bg-ink-700 text-accent-400' : 'text-neutral-400 hover:text-white hover:bg-ink-700'">
+      <i class="fa fa-cog"></i>
     </button>
-    <div :title="`${store.username} · ${levelText()}`"
-      class="w-10 h-10 rounded-full bg-white flex items-center justify-center font-bold text-ink cursor-default select-none">
+    <button @click="router.push({ name: 'profile' })" :title="`${store.username} · ${levelText()}（个人中心）`"
+      class="w-10 h-10 rounded-full bg-white flex items-center justify-center font-bold text-ink cursor-pointer select-none transition hover:ring-2 hover:ring-accent-400"
+      :class="activeName === 'profile' ? 'ring-2 ring-accent-400' : ''">
       {{ avatar }}
-    </div>
+    </button>
   </aside>
 </template>

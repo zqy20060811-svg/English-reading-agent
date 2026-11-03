@@ -209,7 +209,8 @@ def test_aggregate_applies_half_life_decay():
 def test_aggregate_clamps_future_events():
     svc = make_service(events=[(1, "view", NOW + timedelta(hours=1))])
     agg = asyncio.run(svc._aggregate())
-    assert agg[1]["view"] == pytest.approx(1.0)
+    # NOW 与聚合内部真实 now 存在毫秒级时间差，衰减因子略小于 1，放宽容差
+    assert agg[1]["view"] == pytest.approx(1.0, abs=1e-4)
 
 
 def test_aggregate_includes_likes_and_favorites():
@@ -224,8 +225,8 @@ def test_aggregate_includes_likes_and_favorites():
         }
     )
     agg = asyncio.run(svc._aggregate())
-    assert agg[1]["like"] == pytest.approx(1.0)
-    assert agg[1]["favorite"] == pytest.approx(0.5)
+    assert agg[1]["like"] == pytest.approx(1.0, abs=1e-4)
+    assert agg[1]["favorite"] == pytest.approx(0.5, abs=1e-4)
 
 
 # ---------- 事件写入：日去重 ----------

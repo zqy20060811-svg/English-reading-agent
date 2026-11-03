@@ -31,8 +31,15 @@ const outputError = ref('')
 const translating = ref(false)
 const history = ref([])
 
-onMounted(() => {
+onMounted(async () => {
   try { history.value = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]') } catch { history.value = [] }
+  // 个人中心设置的默认目标语言（服务端偏好），静默应用
+  try {
+    const s = await api('/me/settings')
+    const name = s.target_lang
+    const code = Object.entries(LANG_PROMPTS).find(([, n]) => n === name)?.[0]
+    if (code && code !== 'auto') tgtLang.value = code
+  } catch { /* 保持默认 en */ }
 })
 
 function swapLangs() {

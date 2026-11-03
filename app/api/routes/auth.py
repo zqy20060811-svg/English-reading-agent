@@ -17,7 +17,7 @@ async def register(req: UserRegisterRequest, db=Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 async def login(req: UserLoginRequest, db=Depends(get_db)):
-    """登录，返回 JWT access_token（token 同步存入 Redis 2 号库）"""
+    """登录，返回 JWT access_token（token 同步存入 Redis db0）"""
     token = await UserService(db).login(req)
     return TokenResponse(access_token=token)
 

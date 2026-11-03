@@ -8,6 +8,8 @@ const routes = [
   { path: '/read/:bookId?', name: 'reader', component: () => import('../views/ReaderView.vue') },
   { path: '/test', name: 'test', component: () => import('../views/TestView.vue') },
   { path: '/translate', name: 'translate', component: () => import('../views/TranslateView.vue') },
+  { path: '/profile', name: 'profile', component: () => import('../views/PersonalView.vue') },
+  { path: '/settings', name: 'settings', component: () => import('../views/SettingsView.vue') },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
