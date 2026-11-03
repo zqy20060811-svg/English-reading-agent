@@ -17,7 +17,7 @@ const navs: NavItem[] = [
   { name: 'library', icon: 'fa-th-large', label: '书库' },
   { name: 'shelf', icon: 'fa-bookmark-o', label: '书架' },
   { name: 'reader', icon: 'fa-book', label: '阅读' },
-  { name: 'vocabulary', icon: 'fa-language', label: '生词本' },
+  { name: 'vocabulary', icon: 'fa-graduation-cap', label: '生词本' },
   { name: 'test', icon: 'fa-pencil-square-o', label: '水平测试' },
   { name: 'translate', icon: 'fa-font', label: '翻译' },
   { name: 'rank', icon: 'fa-fire', label: '排行榜' },

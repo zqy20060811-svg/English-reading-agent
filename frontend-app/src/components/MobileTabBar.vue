@@ -16,7 +16,7 @@ const tabs: TabItem[] = [
   { name: 'library', icon: 'fa-th-large', label: '书库' },
   { name: 'shelf', icon: 'fa-bookmark-o', label: '书架' },
   { name: 'reader', icon: 'fa-book', label: '阅读' },
-  { name: 'vocabulary', icon: 'fa-language', label: '生词本' },
+  { name: 'vocabulary', icon: 'fa-graduation-cap', label: '生词本' },
   { name: 'profile', icon: 'fa-user-o', label: '我的' },
 ]
 
