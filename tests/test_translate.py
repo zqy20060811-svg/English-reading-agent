@@ -26,7 +26,7 @@ class FakeRepo:
         return sum(1 for r in self.saved if r.user_id == user_id)
 
 
-async def _fake_translate(text: str, target_lang: str, source_lang: str) -> str:
+async def _fake_translate(text: str, target_lang: str, source_lang: str, **_) -> str:
     return f"[{target_lang}] {text}"
 
 

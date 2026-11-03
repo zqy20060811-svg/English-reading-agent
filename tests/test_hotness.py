@@ -194,7 +194,15 @@ def test_compute_scores_tie_all_full_score():
 # ---------- 聚合 ----------
 
 
-def test_aggregate_applies_half_life_decay():
+def test_aggregate_applies_half_life_decay(monkeypatch):
+    # 冻结聚合内部的 now()：NOW 取自模块导入时刻，导入到断言之间的真实时间漂移
+    # 会造成 14 天半衰期下的微小的衰减误差（慢启动时超过 1e-6 容差）
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return NOW if tz is None else NOW.astimezone(tz)
+
+    monkeypatch.setattr(hs, "datetime", FrozenDateTime)
     svc = make_service(
         events=[
             (1, "view", NOW),

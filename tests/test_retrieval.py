@@ -85,7 +85,9 @@ class TestRetrievalBenchmark:
 
         async def _check():
             from sqlalchemy import text
-            from app.db.database import AsyncSessionLocal
+            from app.db.database import AsyncSessionLocal, engine
+
+            await engine.dispose()  # 丢弃跨事件循环遗留的连接池，避免 NoneType send
             async with AsyncSessionLocal() as s:
                 n = (await s.execute(text("SELECT count(*) FROM book_chunks WHERE embedding IS NOT NULL"))).scalar()
             return n

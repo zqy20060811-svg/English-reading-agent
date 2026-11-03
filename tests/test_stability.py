@@ -81,7 +81,7 @@ class TestLLMFailure:
             "app.services.llm_service.requests.post", _fake_post
         )
         with pytest.raises(HTTPException) as e:
-            LLMService._request_chat({"messages": []})
+            LLMService()._request_chat({"messages": []})
         assert e.value.status_code == 502
         assert "返回内容为空" in e.value.detail
 
@@ -152,6 +152,7 @@ def _db_available() -> bool:
     async def _ping():
         from app.db.database import engine
 
+        await engine.dispose()  # 丢弃上个事件循环遗留的连接池，避免跨循环复用报错
         async with engine.connect() as conn:
             await conn.execute(select(1))
 
