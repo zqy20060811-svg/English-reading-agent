@@ -72,7 +72,7 @@ python -m app.scripts.embed_chunks             # BGE-M3 向量化
 python -m app.scripts.backfill_covers          # Open Library 封面回填
 
 # 5. 启动
-uvicorn app.main:app --host 127.0.0.1 --port 8002          # 后端（启动时自动建表/建索引/启用 pgvector）
+uvicorn app.main:app --host 127.0.0.1 --port 8002          # 后端（建表由 Alembic 管理：alembic upgrade head）
 cd frontend-app && npm install && npm run dev              # 前端开发服务器（http://localhost:5173）
 ```
 
@@ -126,6 +126,6 @@ pytest
 ## 已知限制
 
 - 水平测试为「初步评估」（每等级每维度仅 2 题），非精确 CEFR 认证
-- 应用启动时自动建表/建索引仅适用于开发环境，生产需迁移至 Alembic
+- 数据库结构变更统一由 Alembic 迁移管理，应用启动不做 DDL
 - 书籍正文不入 Git（`data/` 已忽略），需本地运行爬虫生成
 - 前端翻译历史存于浏览器 localStorage，未跨设备同步
