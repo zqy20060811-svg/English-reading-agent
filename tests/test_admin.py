@@ -14,7 +14,7 @@ import uuid
 import pytest
 import requests as http_requests
 from fastapi import HTTPException
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 
 from app.services.usage_service import estimate_cost_usd
 
@@ -500,6 +500,313 @@ class TestIngestIdempotency:
                     assert all(c.embedding is None for c in remain)
             finally:
                 await self._cleanup_book(book_id)
+
+        _run(main())
+
+
+# ================= 入库链路验收（P0：中途失败重试 / 部分向量化补齐 / 真孤儿清扫 / 文件一致性） =================
+
+
+class TestSaveBookConsistency:
+    """爬虫落盘一致性（纯文件操作，不依赖数据库）：覆盖更新 + 无 .tmp 残留"""
+
+    def test_save_book_overwrite_and_no_tmp_left(self, tmp_path):
+        from app.crawler.books_catalog import BookMeta
+        from app.crawler.scraper import save_book
+
+        meta = BookMeta(991001, "Atomic Test Book", "Tester", 2000, "test", "synopsis")
+        info1 = save_book(meta, "short old version", tmp_path)
+        content_file = next(tmp_path.rglob("content.txt"))
+        assert content_file.read_text(encoding="utf-8") == "short old version"
+        assert info1["word_count"] == 3
+
+        # 同一本书重新爬取（内容更新）：文件被整体替换，元数据同步更新，无 .tmp 残留
+        info2 = save_book(meta, "brand new longer content version two", tmp_path)
+        assert content_file.read_text(encoding="utf-8") == "brand new longer content version two"
+        assert info2["word_count"] == 6
+        assert list(tmp_path.rglob("*.tmp")) == []  # 原子写不遗留临时文件
+
+
+@requires_db
+class TestIngestRecovery:
+    """run_ingest 完整链路验收：
+
+    - 中途失败（分块阶段崩溃）后重试：前序已提交数据保留，重跑补齐且无重复
+    - 文件更新后重跑：章节与分块反映最新内容（旧向量清空等待补算）
+    - 部分向量化中断：已提交批次保留，重跑只补缺失
+    - 真·孤儿分块（绕过 FK 构造）：chunk_books 兜底清扫真实生效
+    说明：sync_books / sync_chapters_from_local 被重定向到临时目录以隔离测试数据，
+    分块与向量化环节用真实实现。
+    """
+
+    @staticmethod
+    def _content(marker: str) -> str:
+        body = "\n".join([f"{marker} the quick brown fox jumps over the lazy dog " * 4] * 12)
+        return f"CHAPTER I.\n\n{body}\n\nCHAPTER II.\n\n{body}"
+
+    @staticmethod
+    async def _cleanup_book(gid: int) -> None:
+        from app.db.database import AsyncSessionLocal
+        from app.models.book import Book
+        from app.models.book_chapter import BookChapter
+        from app.models.book_chunk import BookChunk
+
+        async with AsyncSessionLocal() as db:
+            await db.execute(
+                BookChunk.__table__.delete().where(
+                    BookChunk.book_id.in_(select(Book.id).where(Book.gutenberg_id == gid))
+                )
+            )
+            await db.execute(
+                BookChapter.__table__.delete().where(
+                    BookChapter.book_id.in_(select(Book.id).where(Book.gutenberg_id == gid))
+                )
+            )
+            await db.execute(Book.__table__.delete().where(Book.gutenberg_id == gid))
+            await db.commit()
+
+    def test_midway_failure_retry_recovers_and_reflects_updated_file(self, monkeypatch, tmp_path):
+        """P0：分块阶段崩溃 → 前 2 步已提交 → 重跑成功；重跑前更新正文文件 → 数据反映新内容"""
+        import json as json_mod
+
+        import app.pipeline as pl
+        from app.db.database import AsyncSessionLocal
+        from app.models.book import Book
+        from app.models.book_chapter import BookChapter
+        from app.models.book_chunk import BookChunk
+        from app.services.book_service import BookService
+
+        suffix = uuid.uuid4().hex[:8]
+        gid = 930000 + int(suffix[:4], 16) % 60000
+        (tmp_path / f"book{gid}").mkdir()
+        (tmp_path / f"book{gid}" / "info.json").write_text(
+            json_mod.dumps({
+                "gutenberg_id": gid, "title": f"Recovery {suffix}",
+                "author": "tester", "year": 2000, "language": "en",
+            }),
+            encoding="utf-8",
+        )
+
+        async def main():
+            # 重定向书籍/章节同步到临时目录（真实实现，只换数据源）
+            real_sync_books, real_sync_chapters, real_chunk = pl.sync_books, pl.sync_chapters_from_local, pl.chunk_books
+
+            async def fake_sync_books():
+                async with AsyncSessionLocal() as s:
+                    return await BookService(s).sync_from_crawler(books_dir=tmp_path)
+
+            async def fake_sync_chapters(only_ids=None, **kw):
+                return await real_sync_chapters(books_dir=tmp_path, only_ids=only_ids)
+
+            monkeypatch.setattr(pl, "sync_books", fake_sync_books)
+            monkeypatch.setattr(pl, "sync_chapters_from_local", fake_sync_chapters)
+
+            # 第一次：分块阶段崩溃（模拟中途失败）
+            (tmp_path / f"book{gid}" / "content.txt").write_text(self._content("V1"), encoding="utf-8")
+
+            async def boom(gids=None):
+                raise RuntimeError("模拟分块阶段崩溃")
+
+            monkeypatch.setattr(pl, "chunk_books", boom)
+            with pytest.raises(RuntimeError, match="分块阶段崩溃"):
+                await pl.run_ingest([gid], embed=False)
+
+            # 前两步已提交：书与章节存在、分块为空
+            async with AsyncSessionLocal() as db:
+                book = (await db.execute(
+                    select(Book).where(Book.gutenberg_id == gid)
+                )).scalars().one()
+                n_ch = (await db.execute(
+                    select(BookChapter).where(BookChapter.book_id == book.id)
+                )).scalars().all()
+                assert {c.chapter_index for c in n_ch} == {1, 2}
+                n_ck = (await db.execute(
+                    select(BookChunk).where(BookChunk.book_id == book.id)
+                )).scalars().all()
+                assert n_ck == []
+
+            # 重试：恢复真实分块；且重跑前更新正文文件（V1 → V2）
+            (tmp_path / f"book{gid}" / "content.txt").write_text(self._content("V2"), encoding="utf-8")
+            monkeypatch.setattr(pl, "chunk_books", real_chunk)
+            await pl.run_ingest([gid], embed=False)
+
+            async with AsyncSessionLocal() as db:
+                chs = (await db.execute(
+                    select(BookChapter).where(BookChapter.book_id == book.id)
+                )).scalars().all()
+                assert {c.chapter_index for c in chs} == {1, 2}  # 无重复章节
+                assert all("V2" in c.content for c in chs)  # 章节内容反映最新文件
+                chunks = (await db.execute(
+                    select(BookChunk).where(BookChunk.book_id == book.id)
+                )).scalars().all()
+                assert chunks and all("V2" in c.chunk_text for c in chunks)  # 分块来自新内容
+                assert all(c.embedding is None for c in chunks)  # 旧向量已随重建清空
+
+                # 幂等复跑：分块数量不变，无重复写入
+                before = len(chunks)
+            await pl.run_ingest([gid], embed=False)
+            async with AsyncSessionLocal() as db:
+                chunks2 = (await db.execute(
+                    select(BookChunk).where(BookChunk.book_id == book.id)
+                )).scalars().all()
+                assert len(chunks2) == before  # 复跑不产生额外分块
+
+        try:
+            _run(main())
+        finally:
+            _run(TestIngestRecovery._cleanup_book(gid))
+
+    def test_partial_embedding_failure_resume(self, monkeypatch):
+        """P0：向量化第二批崩溃 → 已提交批次保留、剩余 NULL → 重跑只补缺失"""
+        from app.db.database import AsyncSessionLocal
+        from app.models.book import Book
+        from app.models.book_chapter import BookChapter
+        from app.models.book_chunk import BookChunk
+
+        suffix = uuid.uuid4().hex[:8]
+        gid = 930000 + int(suffix[:4], 16) % 60000
+        book_id = ch_id = None
+
+        async def make_data():
+            nonlocal book_id, ch_id
+            async with AsyncSessionLocal() as db:
+                b = Book(
+                    gutenberg_id=gid, title=f"EmbTest {suffix}", author="tester", year=2000,
+                    genre="test", synopsis="", language="en", source_url="", word_count=100,
+                )
+                db.add(b)
+                await db.commit()
+                await db.refresh(b)
+                book_id = b.id
+                ch = BookChapter(
+                    book_id=book_id, chapter_index=1, title="C1",
+                    content="chapter one " * 200, word_count=400,
+                )
+                db.add(ch)
+                await db.commit()
+                await db.refresh(ch)
+                ch_id = ch.id
+                for i in range(40):  # 40 块 → 两个批次（32 + 8）
+                    db.add(BookChunk(
+                        book_id=book_id, chapter_id=ch_id, chunk_index=i,
+                        chunk_text=f"chunk {i}", embedding=None,
+                    ))
+                await db.commit()
+
+        async def main():
+            import app.embedding as emb_mod
+            import app.pipeline as pl
+
+            await make_data()
+            calls = {"n": 0}
+
+            def fake_encode(texts):
+                if texts == ["warmup"]:
+                    return [[0.0] * 1024]
+                calls["n"] += 1
+                if calls["n"] == 1:  # 第一批成功
+                    return [[0.1] * 1024 for _ in texts]
+                raise RuntimeError("模拟向量化中断")  # 第二批崩溃
+
+            monkeypatch.setattr(emb_mod, "encode_texts", fake_encode)
+            with pytest.raises(RuntimeError, match="向量化中断"):
+                await pl.embed_missing_chunks(gutenberg_ids=[gid])
+
+            async with AsyncSessionLocal() as db:
+                emb = (await db.execute(
+                    select(BookChunk.embedding).where(BookChunk.book_id == book_id)
+                )).all()
+                n_done = sum(1 for (v,) in emb if v is not None)
+                assert n_done == 32  # 第一批已提交保留
+                assert len(emb) - n_done == 8  # 剩余等待补算
+
+            # 重跑（fake 改为始终成功）：只补缺失的 8 块
+            def ok_encode(texts):
+                if texts == ["warmup"]:
+                    return [[0.0] * 1024]
+                return [[0.1] * 1024 for _ in texts]
+
+            monkeypatch.setattr(emb_mod, "encode_texts", ok_encode)
+            result = await pl.embed_missing_chunks(gutenberg_ids=[gid])
+            assert result["chunks"] == 8  # 只处理缺失块，不重复编码已完成的 32 块
+            async with AsyncSessionLocal() as db:
+                emb = (await db.execute(
+                    select(BookChunk.embedding).where(BookChunk.book_id == book_id)
+                )).all()
+                assert all(v is not None for (v,) in emb)  # 全部补齐
+
+        try:
+            _run(main())
+        finally:
+            _run(TestIngestRecovery._cleanup_book(gid))
+
+    def test_orphan_chunk_sweep_with_real_orphan(self):
+        """P1：绕过外键构造真孤儿分块，验证 chunk_books 兜底清扫真实生效。
+
+        构造孤儿需要超级用户权限（session_replication_role = replica），
+        本地 docker 的库用户通常为超级用户；非超级用户环境自动跳过。
+        """
+        async def main():
+            from app.db.database import AsyncSessionLocal
+            from app.models.book import Book
+            from app.models.book_chapter import BookChapter
+            from app.models.book_chunk import BookChunk
+            from app.pipeline import chunk_books
+
+            suffix = uuid.uuid4().hex[:8]
+            gid = 930000 + int(suffix[:4], 16) % 60000
+            book_id = ch_id = chunk_id = None
+            async with AsyncSessionLocal() as db:
+                is_super = (await db.execute(text(
+                    "SELECT rolsuper FROM pg_roles WHERE rolname = current_user"
+                ))).scalar()
+            if not is_super:
+                pytest.skip("构造真孤儿需要超级用户权限，当前库用户非 superuser")
+
+            async with AsyncSessionLocal() as db:
+                b = Book(
+                    gutenberg_id=gid, title=f"Orphan2 {suffix}", author="tester", year=2000,
+                    genre="test", synopsis="", language="en", source_url="", word_count=100,
+                )
+                db.add(b)
+                await db.commit()
+                await db.refresh(b)
+                book_id = b.id
+                ch = BookChapter(
+                    book_id=book_id, chapter_index=1, title="C1",
+                    content="chapter one " * 200, word_count=400,
+                )
+                db.add(ch)
+                await db.commit()
+                await db.refresh(ch)
+                ch_id = ch.id
+                ck = BookChunk(
+                    book_id=book_id, chapter_id=ch_id, chunk_index=0,
+                    chunk_text="orphan", embedding=[0.3] * 1024,
+                )
+                db.add(ck)
+                await db.commit()
+                await db.refresh(ck)
+                chunk_id = ck.id
+
+                # 绕过 FK 触发器删除章节行，留下真孤儿分块（模拟历史遗留数据）
+                await db.execute(text("SET session_replication_role = replica"))
+                await db.execute(text(f"DELETE FROM book_chapters WHERE id = {ch_id}"))
+                await db.execute(text("SET session_replication_role = DEFAULT"))
+                await db.commit()
+
+            try:
+                # 清扫前：孤儿确实存在
+                async with AsyncSessionLocal() as db:
+                    assert await db.get(BookChunk, chunk_id) is not None
+
+                await chunk_books([gid])
+
+                # 清扫后：孤儿被删除
+                async with AsyncSessionLocal() as db:
+                    assert await db.get(BookChunk, chunk_id) is None
+            finally:
+                await self._cleanup_book(gid)
 
         _run(main())
 

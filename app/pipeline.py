@@ -82,8 +82,15 @@ async def chunk_books(gutenberg_ids: list[int] | None = None) -> dict:
     }
 
 
-async def embed_missing_chunks(limit: int | None = None) -> dict:
+async def embed_missing_chunks(
+    limit: int | None = None, gutenberg_ids: list[int] | None = None
+) -> dict:
     """为 book_chunks 中缺 embedding 的块生成向量（BGE-M3 本地推理）。
+
+    Args:
+        limit: 最多处理的块数（调试/分批用）。
+        gutenberg_ids: 只处理指定书籍的缺向量块；None 表示全库。
+            入库任务应传入本次书号，避免顺带补算全库欠账导致任务时长不可控。
 
     返回处理的块数与耗时拆分：model_s 模型加载、encode_s 编码、db_s 写库。
     app.embedding 延迟导入，避免不向量化时加载 sentence-transformers。
@@ -93,6 +100,13 @@ async def embed_missing_chunks(limit: int | None = None) -> dict:
     BATCH_SIZE = 32
     async with AsyncSessionLocal() as s:
         id_q = select(BookChunk.id).where(BookChunk.embedding.is_(None))
+        if gutenberg_ids:
+            id_q = id_q.where(
+                BookChunk.book_id.in_(
+                    select(Book.id).where(Book.gutenberg_id.in_(gutenberg_ids))
+                )
+            )
+        id_q = id_q.order_by(BookChunk.id)  # 确定性顺序：先进先补
         if limit:
             id_q = id_q.limit(limit)
         ids = (await s.execute(id_q)).scalars().all()
@@ -164,7 +178,8 @@ async def run_ingest(gutenberg_ids: list[int], embed: bool = False) -> None:
 
     if embed:
         t1 = time.perf_counter()
-        emb = await embed_missing_chunks()
+        # 只补本次入库书籍的缺向量块，避免顺带清全库欠账导致任务时长不可控
+        emb = await embed_missing_chunks(gutenberg_ids=gutenberg_ids)
         print(
             f"[流水线] 4/4 向量化：{emb['chunks']} 块"
             f"（模型加载 {emb['model_s']:.1f}s / 编码 {emb['encode_s']:.1f}s / 写库 {emb['db_s']:.1f}s，"
