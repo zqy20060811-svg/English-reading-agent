@@ -43,7 +43,14 @@ function onClick(): void {
 onMounted(() => {
   try {
     const saved = JSON.parse(localStorage.getItem(FAB_POS_KEY) || 'null')
-    if (saved && typeof saved.x === 'number') fabStyle.value = { left: saved.x + 'px', top: saved.y + 'px' }
+    if (saved && typeof saved.x === 'number' && fab.value) {
+      // 记忆的是绝对像素坐标，窗口尺寸可能已变化：钳制回视口内，避免按钮停在屏幕外"消失"
+      const w = fab.value.offsetWidth
+      const h = fab.value.offsetHeight
+      const x = Math.min(Math.max(8, saved.x), window.innerWidth - w - 8)
+      const y = Math.min(Math.max(8, saved.y), window.innerHeight - h - 8)
+      fabStyle.value = { left: x + 'px', top: y + 'px' }
+    }
   } catch { /* 位置数据损坏则忽略 */ }
 })
 </script>

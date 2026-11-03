@@ -23,6 +23,7 @@ onMounted(loadMe)
       </router-view>
     </main>
   </div>
-  <MobileTabBar />
+  <!-- 底部 Tab 导航与登录页互斥：登录页为独立布局 -->
+  <MobileTabBar v-if="$route.name !== 'login'" />
   <ToastHost />
 </template>
