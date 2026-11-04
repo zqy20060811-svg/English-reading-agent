@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     PERSONAL_MAX_BOOKS_PER_USER: int = 20       # 每用户书籍数量上限
     PERSONAL_MAX_TOTAL_MB_PER_USER: int = 200   # 每用户占用空间上限（MB）
 
+    # 个人电子书 AI 全书预分析（后台任务，按章节分析）
+    PERSONAL_ANALYSIS_VERSION: int = 1          # 分析策略版本（调整策略后递增即可重分析）
+    PERSONAL_ANALYSIS_MAX_LLM_CHARS: int = 12000  # 单章注入 LLM 的正文上限（超出截断保留开头）
+    PERSONAL_ANALYSIS_LLM_MAX_TOKENS: int = 1800  # 单次分析调用的输出 token 上限
+    PERSONAL_ANALYSIS_STALE_HOURS: int = 6      # running 超过该时长视为挂死（查询时懒惰标记失败）
+
 
 @lru_cache
 def get_settings() -> Settings:

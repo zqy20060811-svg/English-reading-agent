@@ -7,6 +7,11 @@
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from app.core.config import get_settings
+from app.schemas.personal_analysis import (
+    PersonalAnalysisTaskOut,
+    PersonalBookAnalysisOut,
+    PersonalChapterAnalysisOut,
+)
 from app.schemas.personal_book import (
     PersonalBookOut,
     PersonalBookUploadOut,
@@ -14,6 +19,10 @@ from app.schemas.personal_book import (
     PersonalChapterOut,
     PersonalProgressOut,
     PersonalProgressUpdate,
+)
+from app.services.personal_analysis_service import (
+    PersonalAnalysisService,
+    get_personal_analysis_service,
 )
 from app.services.personal_book_service import (
     PersonalBookService,
@@ -52,6 +61,7 @@ async def _read_limited(file: UploadFile, max_bytes: int) -> bytes:
 async def upload_personal_book(
     file: UploadFile = File(..., description="EPUB 或 TXT 文件"),
     service: PersonalBookService = Depends(get_personal_book_service),
+    analysis_service: PersonalAnalysisService = Depends(get_personal_analysis_service),
     current_user=Depends(get_current_user),
 ):
     """上传个人电子书：同步解析结构，返回后即可阅读（不做 AI 分析）"""
@@ -60,6 +70,16 @@ async def upload_personal_book(
     book, duplicated = await service.create_book(current_user, file.filename or "", data)
     out = PersonalBookUploadOut.model_validate(book)
     out.duplicated = duplicated
+    # 上传成功（含重复文件命中）后自动创建全书 AI 分析任务：
+    # 后台异步执行，不阻塞本次响应；失败只记录日志，不影响阅读
+    try:
+        await analysis_service.ensure_task(current_user, book.id)
+    except Exception:  # 分析任务创建失败不影响上传结果
+        import logging
+
+        logging.getLogger("app.personal_analysis").exception(
+            "上传后自动创建分析任务失败：book=%s", book.id
+        )
     return out
 
 
@@ -135,3 +155,60 @@ async def save_personal_progress(
 ):
     """保存阅读位置（章节 + 章内页码 + 全书百分比）"""
     return await service.save_progress(current_user, personal_book_id, data)
+
+
+# ================= AI 全书预分析 =================
+
+
+@router.post("/{personal_book_id}/analysis", response_model=PersonalAnalysisTaskOut)
+async def create_or_get_analysis_task(
+    personal_book_id: int,
+    service: PersonalAnalysisService = Depends(get_personal_analysis_service),
+    current_user=Depends(get_current_user),
+):
+    """创建或获取全书分析任务（上传后已自动创建；失败/取消的任务可再次触发续跑）"""
+    return await service.ensure_task(current_user, personal_book_id)
+
+
+@router.get("/{personal_book_id}/analysis/status", response_model=PersonalAnalysisTaskOut)
+async def get_analysis_status(
+    personal_book_id: int,
+    service: PersonalAnalysisService = Depends(get_personal_analysis_service),
+    current_user=Depends(get_current_user),
+):
+    """查询分析任务状态与进度"""
+    return await service.get_status(current_user, personal_book_id)
+
+
+@router.get("/{personal_book_id}/analysis/report", response_model=PersonalBookAnalysisOut)
+async def get_analysis_report(
+    personal_book_id: int,
+    service: PersonalAnalysisService = Depends(get_personal_analysis_service),
+    current_user=Depends(get_current_user),
+):
+    """全书难度分析报告（章节分析全部完成后生成）"""
+    return await service.get_report(current_user, personal_book_id)
+
+
+@router.get(
+    "/{personal_book_id}/analysis/chapters/{chapter_index}",
+    response_model=PersonalChapterAnalysisOut,
+)
+async def get_chapter_analysis(
+    personal_book_id: int,
+    chapter_index: int,
+    service: PersonalAnalysisService = Depends(get_personal_analysis_service),
+    current_user=Depends(get_current_user),
+):
+    """指定章节的分析结果"""
+    return await service.get_chapter_result(current_user, personal_book_id, chapter_index)
+
+
+@router.post("/{personal_book_id}/analysis/cancel", response_model=PersonalAnalysisTaskOut)
+async def cancel_analysis_task(
+    personal_book_id: int,
+    service: PersonalAnalysisService = Depends(get_personal_analysis_service),
+    current_user=Depends(get_current_user),
+):
+    """取消进行中的分析任务（后台执行体感知后停止）"""
+    return await service.cancel_task(current_user, personal_book_id)

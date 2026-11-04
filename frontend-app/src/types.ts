@@ -152,6 +152,61 @@ export interface PersonalBookUploadOut extends PersonalBook {
   duplicated: boolean // true = 命中同人同文件，复用已有记录
 }
 
+// ============ 个人书籍 AI 全书分析（/personal/books/{id}/analysis） ============
+
+export type AnalysisStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+
+export interface PersonalAnalysisTask {
+  id: number
+  personal_book_id: number
+  status: AnalysisStatus
+  total_chapters: number
+  completed_chapters: number
+  failed_chapters: number
+  current_chapter_index: number | null
+  error_message: string | null
+  started_at: string | null
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PersonalChapterAnalysis {
+  chapter_index: number
+  word_count: number
+  unique_word_count: number
+  average_sentence_length: number
+  long_sentence_ratio: number
+  vocabulary_level_distribution: Record<string, number>
+  vocabulary_statistics: {
+    unique_word_count: number
+    top_freq_words: { word: string; count: number }[]
+    unknown_words: { word: string; count: number }[]
+  }
+  grammar_features: {
+    local_rules?: Record<string, { count: number; examples?: string[] }>
+    llm_focus?: { pattern: string; example: string; explanation: string }[]
+  }
+  difficulty_level: string
+  difficulty_score: number
+  chapter_summary: string
+  reading_suggestion: string
+  analysis_version: number
+  updated_at: string
+}
+
+export interface PersonalBookReport {
+  overall_level: string
+  difficulty_score: number
+  total_word_count: number
+  chapter_difficulty_distribution: Record<string, number>
+  vocabulary_level_distribution: Record<string, number>
+  main_grammar_features: Record<string, { count: number }>
+  reading_recommendations: string[]
+  analysis_version: number
+  completed_at: string
+}
+
 // ============ 管理后台 ============
 
 export interface AdminBook {

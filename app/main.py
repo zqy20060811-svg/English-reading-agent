@@ -34,6 +34,20 @@ async def lifespan(app: FastAPI):
             schedule_task(tid)
     except Exception as exc:  # 数据库不可用时服务仍需能启动
         logging.getLogger("app").warning(f"入库任务启动恢复失败（数据库不可用？）：{exc}")
+
+    # 个人书分析任务启动恢复：running → pending（章节级幂等，续跑自动跳过已完成章节），
+    # pending 重新调度（领取是原子的，重复调度安全）
+    try:
+        from app.services.personal_analysis_runner import (
+            recover_interrupted_analyses,
+            schedule_analysis,
+        )
+
+        pending_ids = await recover_interrupted_analyses()
+        for tid in pending_ids:
+            schedule_analysis(tid)
+    except Exception as exc:
+        logging.getLogger("app").warning(f"个人书分析任务启动恢复失败（数据库不可用？）：{exc}")
     yield
 
 

@@ -21,6 +21,8 @@ class LLMUsageLog(Base):
     model: Mapped[str] = mapped_column(String(50), default="")   # 模型名（成本随模型不同）
     prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
     completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    # 单次调用耗时（毫秒，可空）：后台批量任务（如个人书分析）按调用记录，请求级调用可空
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True
     )
