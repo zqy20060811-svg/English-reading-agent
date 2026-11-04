@@ -6,7 +6,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { api, LAST_BOOK_KEY, apiErrorMessage } from '../api/client'
 import { loadBooks, store, toast } from '../store'
 import type { Book, BookmarkItem, BookInteraction, Chapter, ChapterMeta, ChapterPrediction, LookupPop, PersonalAnalysisTask, PersonalBook, PersonalBookReport, PredictedWord, QAItem, ReadingProgress, SelBubble, VocabItem, WordLookup } from '../types'
-import { buildSegments, locateSentence, mapParagraphs, normalizeWord, type ParaSegment } from '../utils/personalPrediction'
+import { normalizeWord } from '../utils/personalPrediction'
 import { extractWordAt } from '../utils/wordExtract'
 import AiDrawer from '../components/reader/AiDrawer.vue'
 import AiFab from '../components/reader/AiFab.vue'
@@ -506,22 +506,6 @@ async function loadMyVocabulary(): Promise<void> {
   } catch { /* 收录状态加载失败只影响样式与按钮 */ }
 }
 
-// ================= 正文渲染片段（长难句高亮在数据层切片，Vue 渲染，不碰 DOM；不做生词高亮） =================
-const displayParas = computed<{ text: string; segs: ParaSegment[] }[]>(() => {
-  if (!chapter.value) return []
-  const paras = mapParagraphs(chapter.value.content)
-  if (!isPersonal.value || !prediction.value) {
-    return paras.map(p => ({ text: p.text, segs: [{ text: p.text }] }))
-  }
-  const located = prediction.value.sentences
-    .map(s => locateSentence(paras, s))
-    .filter((r): r is NonNullable<typeof r> => r !== null)
-  return paras.map((p, i) => ({
-    text: p.text,
-    segs: buildSegments(p.text, located.filter(r => r.paraIndex === i).map(r => r.range)),
-  }))
-})
-
 // ================= 点词查义（点击正文单词弹出释义卡片） =================
 const lookup = ref<LookupPop | null>(null)
 const lookupPrediction = ref<PredictedWord | null>(null) // 弹层关联的预测信息（个人书）
@@ -540,11 +524,6 @@ async function onContentClick(e: MouseEvent): Promise<void> {
   if (window.getSelection()?.toString()) return // 划词中不触发点词
   const target = e.target as HTMLElement
   if (!target.closest('p')) return // 只对正文段落生效（章末按钮等不受影响）
-  // 个人书：长难句高亮点击优先
-  if (isPersonal.value) {
-    const sentEl = target.closest('span[data-era-sentence]') as HTMLElement | null
-    if (sentEl) { openSentenceTranslate(sentEl, e); return }
-  }
   const hit = extractWordAt(document, e.clientX, e.clientY)
   if (!hit || !bookId.value || !chapter.value) return
   // 个人书：点击的词若在预测生词表中，弹层附加 CEFR / 章内次数 / 收藏状态
@@ -607,25 +586,7 @@ async function removeFromVocabulary(): Promise<void> {
   }
 }
 
-// ================= 长难句点击（复用现有翻译能力，直接出译文卡片） =================
-async function openSentenceTranslate(el: HTMLElement, e: MouseEvent): Promise<void> {
-  const text = (el.textContent || '').trim()
-  if (!text || selTranslating.value) return
-  const x = Math.min(Math.max(60, e.clientX), window.innerWidth - 80)
-  const y = Math.min(e.clientY + 24, window.innerHeight - 160)
-  selResult.value = { x, y, text: '' }
-  selTranslating.value = true
-  try {
-    const r = await api<{ translation: string }>('/translate', {
-      method: 'POST', body: { text, target_lang: '中文' },
-    })
-    selResult.value = { x, y, text: r.translation }
-  } catch (err) {
-    selResult.value = { x, y, text: '翻译失败：' + apiErrorMessage(err) }
-  } finally {
-    selTranslating.value = false
-  }
-}
+// ================= 长难句翻译：复用现有划词选句流程，不做定位与高亮 =================
 
 // ================= 划句翻译（选中正文句子浮现翻译按钮） =================
 const selBar = ref<SelBubble | null>(null)
@@ -825,9 +786,6 @@ async function removeBookmark(b: BookmarkItem): Promise<void> {
         <i class="fa fa-exclamation-circle mr-1"></i>预测加载失败
         <button @click="retryPrediction" class="underline text-accent-600 ml-0.5">重试</button>
       </span>
-      <span class="ml-auto text-soft hidden md:flex items-center gap-2">
-        <span class="inline-block w-4 h-3 rounded-sm bg-amber-200/70"></span>长难句
-      </span>
     </div>
 
     <!-- 阅读框 -->
@@ -895,11 +853,7 @@ async function removeBookmark(b: BookmarkItem): Promise<void> {
         <div ref="pagesShell" class="flex-1 min-h-0 px-8 lg:px-10 pt-6 pb-14 overflow-hidden bg-[#FBF9F3]"
           @click="onContentClick" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd">
           <div ref="pagesInner" class="prose-book text-[17px] text-ink will-change-transform h-full">
-            <!-- 正文段落：个人书长难句高亮在数据层切片后由 Vue 渲染，不改 DOM 不碰 HTML 字符串；不做生词高亮 -->
-            <p v-for="(p, i) in displayParas" :key="i"><template v-for="(s, j) in p.segs" :key="j"><span
-              :data-era-sentence="s.sentence ? '1' : undefined"
-              :class="{ 'pred-sentence': !!s.sentence }"
-            >{{ s.text }}</span></template></p>
+            <p v-for="(p, i) in chapter.content.split(/\n\s*\n/).filter(s => s.trim())" :key="i">{{ p.trim() }}</p>
 
             <!-- 章末过渡页：翻到末页后引导进入下一章，替代硬跳章 -->
             <div class="chapter-end flex flex-col items-center justify-center text-center gap-4 mt-12 py-10">
@@ -961,15 +915,3 @@ async function removeBookmark(b: BookmarkItem): Promise<void> {
   <AiFab v-show="!drawerOpen" @toggle="drawerOpen = !drawerOpen" />
   </div>
 </template>
-
-<style scoped>
-/* 个人书长难句高亮：淡黄底色，纯 inline 不影响分页与段落结构 */
-.pred-sentence {
-  cursor: pointer;
-  background: rgba(252, 211, 77, 0.28);
-  border-radius: 2px;
-}
-.pred-sentence:hover {
-  background: rgba(252, 211, 77, 0.45);
-}
-</style>
