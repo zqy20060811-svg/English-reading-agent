@@ -5,7 +5,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, LAST_BOOK_KEY, apiErrorMessage } from '../api/client'
 import { loadBooks, store, toast } from '../store'
-import type { Book, BookmarkItem, BookInteraction, Chapter, ChapterMeta, LookupPop, PersonalBook, QAItem, ReadingProgress, SelBubble, WordLookup } from '../types'
+import type { Book, BookmarkItem, BookInteraction, Chapter, ChapterMeta, ChapterPrediction, LookupPop, PersonalAnalysisTask, PersonalBook, PersonalBookReport, PredictedWord, QAItem, ReadingProgress, SelBubble, VocabItem, WordLookup } from '../types'
+import { buildSegments, locateSentence, mapParagraphs, wordMapOf, type ParaSegment } from '../utils/personalPrediction'
 import { extractWordAt } from '../utils/wordExtract'
 import AiDrawer from '../components/reader/AiDrawer.vue'
 import AiFab from '../components/reader/AiFab.vue'
@@ -25,6 +26,18 @@ const chapters = ref<ChapterMeta[]>([])
 const chapter = ref<(Chapter & { word_count: number }) | null>(null)
 const loadingChapter = ref(false)
 const chapterError = ref('') // 章节加载失败信息（非空时展示重试按钮）
+
+// ================= 个人书籍 AI 辅助（阶段D：章节预测 + 分析状态） =================
+const prediction = ref<ChapterPrediction | null>(null)
+const predictionLoading = ref(false)
+const predictionError = ref('')
+let predictionReqId = 0 // 竞态防护：章节切换后旧响应按序号丢弃
+
+// 分析状态条数据（全部静默失败，不阻断阅读）
+const analysisStatus = ref<PersonalAnalysisTask | null>(null)
+const analysisReport = ref<PersonalBookReport | null>(null)
+const myLevel = ref<string | null>(null) // 最新等级测试结果；null = 未测试（后端默认按 B1 估算）
+let analysisTimer: number | undefined
 
 // 分页状态
 const PAGE_GAP = 64
@@ -117,6 +130,12 @@ async function onBookChange(id: number, chapterIndex = 1): Promise<void> {
   pageTranslation.value = ''
   bookmarks.value = []
   chapterError.value = ''
+  // 个人书 AI 辅助状态重置（换书/换来源时旧书数据不可残留）
+  prediction.value = null
+  predictionError.value = ''
+  analysisStatus.value = null
+  analysisReport.value = null
+  stopAnalysisPoll()
   if (!id) return
   // 当前书保证出现在下拉里（首次从书库进入时可能还没有互动记录）
   if (!isPersonal.value && !myBooks.value.some(b => b.id === id)) {
@@ -140,6 +159,8 @@ async function onBookChange(id: number, chapterIndex = 1): Promise<void> {
     if (!isPersonal.value) {
       loadInteraction() // 点赞/收藏状态与计数（失败静默）
       loadBookmarks() // 书签列表（失败静默）
+    } else {
+      loadAnalysisInfo() // 分析状态条：水平 / 任务进度 / 全书难度（失败静默）
     }
   } catch (err) {
     toast('章节目录加载失败：' + apiErrorMessage(err))
@@ -172,6 +193,8 @@ async function loadChapter(index: number, startPage = 0): Promise<void> {
       updatePageUI()
     }
     saveProgress()
+    // 个人书：并行加载本章预测（不阻塞正文，竞态由请求序号防护）
+    if (isPersonal.value) loadPrediction(data.chapter_index)
     // 最近阅读位置仅记录公共书：书架「继续阅读」按公共书路由恢复，避免个人书 id 撞公共书
     if (!isPersonal.value) {
       localStorage.setItem(LAST_BOOK_KEY, JSON.stringify({
@@ -345,11 +368,13 @@ onMounted(() => {
   window.addEventListener('resize', onResize)
   document.addEventListener('keydown', onKeydown)
   document.addEventListener('selectionchange', onSelectionChange)
+  loadMyVocabulary() // 生词本已收藏索引（公共书/个人书都用，失败静默）
 })
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize)
   document.removeEventListener('keydown', onKeydown)
   document.removeEventListener('selectionchange', onSelectionChange)
+  stopAnalysisPoll()
 })
 
 // ================= 翻译本页（仅当前可见页） =================
@@ -404,24 +429,140 @@ async function askQuestion(question: string): Promise<void> {
   }
 }
 
+// ================= 个人书预测与分析状态（阶段D） =================
+
+/** 当前章节预测数据：只请求单章，切章重载，竞态用请求序号防护 */
+async function loadPrediction(index: number): Promise<void> {
+  if (!isPersonal.value || !bookId.value) return
+  const reqId = ++predictionReqId
+  predictionLoading.value = true
+  predictionError.value = ''
+  try {
+    const data = await api<ChapterPrediction>(`${base.value}/${bookId.value}/chapters/${index}/prediction`)
+    if (reqId !== predictionReqId) return // 章节已切换，丢弃旧响应
+    prediction.value = data
+  } catch (err) {
+    if (reqId !== predictionReqId) return
+    prediction.value = null
+    predictionError.value = apiErrorMessage(err) // 预测失败只提示重试，不影响正文
+  } finally {
+    if (reqId === predictionReqId) predictionLoading.value = false
+  }
+}
+
+function retryPrediction(): void {
+  if (chapter.value) loadPrediction(chapter.value.chapter_index)
+}
+
+/** 分析状态条：用户水平 + 任务进度 + 全书难度（全部静默失败，不阻断阅读） */
+async function loadAnalysisInfo(): Promise<void> {
+  if (!isPersonal.value || !bookId.value) return
+  stopAnalysisPoll()
+  const id = bookId.value
+  api<{ level: string | null }>('/me/stats')
+    .then(s => { if (bookId.value === id) myLevel.value = s.level })
+    .catch(() => { /* 水平展示为未知 */ })
+  api<PersonalAnalysisTask>(`${base.value}/${id}/analysis/status`)
+    .then(t => {
+      if (bookId.value !== id) return
+      analysisStatus.value = t
+      if (['pending', 'running'].includes(t.status)) {
+        analysisTimer = analysisTimer ?? window.setInterval(refreshAnalysisStatus, 5000)
+      }
+    })
+    .catch(() => { /* 无分析任务属正常状态 */ })
+  api<PersonalBookReport>(`${base.value}/${id}/analysis/report`)
+    .then(r => { if (bookId.value === id) analysisReport.value = r })
+    .catch(() => { /* 报告未生成属正常状态 */ })
+}
+
+/** 进行中任务轮询：完成后拉一次报告并停止 */
+async function refreshAnalysisStatus(): Promise<void> {
+  if (!isPersonal.value || !bookId.value) { stopAnalysisPoll(); return }
+  try {
+    const t = await api<PersonalAnalysisTask>(`${base.value}/${bookId.value}/analysis/status`)
+    analysisStatus.value = t
+    if (!['pending', 'running'].includes(t.status)) {
+      stopAnalysisPoll()
+      if (t.status === 'completed') {
+        api<PersonalBookReport>(`${base.value}/${bookId.value}/analysis/report`)
+          .then(r => { analysisReport.value = r }).catch(() => {})
+      }
+    }
+  } catch { /* 状态刷新失败保持旧值 */ }
+}
+
+function stopAnalysisPoll(): void {
+  if (analysisTimer) { window.clearInterval(analysisTimer); analysisTimer = undefined }
+}
+
+/** 生词本已收藏索引：word → 生词条目 id（高亮样式与取消收录都要用） */
+async function loadMyVocabulary(): Promise<void> {
+  try {
+    const rows = await api<VocabItem[]>('/vocabulary')
+    const map = new Map<string, number>()
+    rows.forEach(r => map.set(r.word, r.id))
+    savedWordIds.value = map
+  } catch { /* 收录状态加载失败只影响样式与按钮 */ }
+}
+
+function isWordSaved(word: string): boolean {
+  return savedWordIds.value.has(word)
+}
+
+// ================= 正文渲染片段（高亮在数据层切片，Vue 渲染，不碰 DOM） =================
+const displayParas = computed<{ text: string; segs: ParaSegment[] }[]>(() => {
+  if (!chapter.value) return []
+  const paras = mapParagraphs(chapter.value.content)
+  if (!isPersonal.value || !prediction.value) {
+    return paras.map(p => ({ text: p.text, segs: [{ text: p.text }] }))
+  }
+  const words = wordMapOf(prediction.value.words)
+  const located = prediction.value.sentences
+    .map(s => locateSentence(paras, s))
+    .filter((r): r is NonNullable<typeof r> => r !== null)
+  return paras.map((p, i) => ({
+    text: p.text,
+    segs: buildSegments(p.text, words, located.filter(r => r.paraIndex === i).map(r => r.range)),
+  }))
+})
+
 // ================= 点词查义（点击正文单词弹出释义卡片） =================
 const lookup = ref<LookupPop | null>(null)
-const savedWords = new Set<string>() // 本次会话已收录的词（提示口径用）
+const lookupPrediction = ref<PredictedWord | null>(null) // 弹层关联的预测信息（个人书）
+const savedWordIds = ref(new Map<string, number>()) // 生词本已收藏：归一化 word → 条目 id
+
+const POP_W = 288
+function popupPos(e: MouseEvent): { x: number; y: number } {
+  return {
+    x: Math.min(Math.max(8, e.clientX - POP_W / 2), window.innerWidth - POP_W - 12),
+    y: Math.min(e.clientY + 16, window.innerHeight - 300),
+  }
+}
 
 async function onContentClick(e: MouseEvent): Promise<void> {
   selResult.value = null
   if (window.getSelection()?.toString()) return // 划词中不触发点词
   const target = e.target as HTMLElement
   if (!target.closest('p')) return // 只对正文段落生效（章末按钮等不受影响）
+  // 个人书：预测生词 / 长难句的高亮交互优先
+  if (isPersonal.value) {
+    const wordEl = target.closest('span[data-era-word]') as HTMLElement | null
+    if (wordEl) { openPredictionWordPopup(wordEl, e); return }
+    const sentEl = target.closest('span[data-era-sentence]') as HTMLElement | null
+    if (sentEl) { openSentenceTranslate(sentEl, e); return }
+  }
   const hit = extractWordAt(document, e.clientX, e.clientY)
   if (!hit || !bookId.value || !chapter.value) return
-  const word = hit.word.toLowerCase()
-  const POP_W = 288
-  const x = Math.min(Math.max(8, e.clientX - POP_W / 2), window.innerWidth - POP_W - 12)
-  const y = Math.min(e.clientY + 16, window.innerHeight - 300)
+  openLookupPopup(hit.word.toLowerCase(), hit.sentence, popupPos(e), null)
+}
+
+/** 打开查词弹层：公共书任意词 / 个人书预测生词共用 */
+async function openLookupPopup(word: string, sentence: string, pos: { x: number; y: number }, pw: PredictedWord | null): Promise<void> {
+  lookupPrediction.value = pw
   lookup.value = {
-    word, sentence: hit.sentence, x, y,
-    loading: true, data: null, error: '', saved: savedWords.has(word),
+    word, sentence: sentence, x: pos.x, y: pos.y,
+    loading: true, data: null, error: '', saved: savedWordIds.value.has(word),
   }
   try {
     const data = await api<WordLookup>(`/lookup/word/${encodeURIComponent(word)}`)
@@ -433,24 +574,67 @@ async function onContentClick(e: MouseEvent): Promise<void> {
   }
 }
 
+function openPredictionWordPopup(el: HTMLElement, e: MouseEvent): void {
+  const word = el.dataset.eraWord || ''
+  if (!word || !chapter.value) return
+  const pw = prediction.value?.words.find(w => w.word === word) ?? null
+  // 上下文例句：优先所在长难句，否则所在段落
+  const sentEl = el.closest('span[data-era-sentence]') as HTMLElement | null
+  const sentence = (sentEl?.textContent || el.closest('p')?.textContent || '').trim().slice(0, 400)
+  openLookupPopup(word, sentence, popupPos(e), pw)
+}
+
 async function saveToVocabulary(): Promise<void> {
   const l = lookup.value
   if (!l || !bookId.value || !chapter.value || l.saved) return
-  if (isPersonal.value) { toast('个人书籍暂不支持收录生词本'); return }
   try {
-    await api('/vocabulary', {
-      method: 'POST',
-      body: {
-        word: l.word, book_id: bookId.value,
-        chapter_index: chapter.value.chapter_index,
-        context_sentence: l.sentence || null,
-      },
-    })
-    savedWords.add(l.word)
+    const body: Record<string, unknown> = {
+      word: l.word,
+      chapter_index: chapter.value.chapter_index,
+      context_sentence: l.sentence || null,
+    }
+    if (!isPersonal.value) body.book_id = bookId.value // 公共书必传；个人书不传（后端 book_id 可空）
+    const out = await api<{ id: number }>('/vocabulary', { method: 'POST', body })
+    savedWordIds.value.set(l.word, out.id)
     l.saved = true
     toast('已收录到生词本', 'success')
   } catch (err) {
     toast('收录失败：' + apiErrorMessage(err))
+  }
+}
+
+async function removeFromVocabulary(): Promise<void> {
+  const l = lookup.value
+  if (!l) return
+  const id = savedWordIds.value.get(l.word)
+  if (!id) return
+  try {
+    await api(`/vocabulary/${id}`, { method: 'DELETE' })
+    savedWordIds.value.delete(l.word)
+    l.saved = false
+    toast('已从生词本移除', 'ok')
+  } catch (err) {
+    toast('移除失败：' + apiErrorMessage(err))
+  }
+}
+
+// ================= 长难句点击（复用现有翻译能力，直接出译文卡片） =================
+async function openSentenceTranslate(el: HTMLElement, e: MouseEvent): Promise<void> {
+  const text = (el.textContent || '').trim()
+  if (!text || selTranslating.value) return
+  const x = Math.min(Math.max(60, e.clientX), window.innerWidth - 80)
+  const y = Math.min(e.clientY + 24, window.innerHeight - 160)
+  selResult.value = { x, y, text: '' }
+  selTranslating.value = true
+  try {
+    const r = await api<{ translation: string }>('/translate', {
+      method: 'POST', body: { text, target_lang: '中文' },
+    })
+    selResult.value = { x, y, text: r.translation }
+  } catch (err) {
+    selResult.value = { x, y, text: '翻译失败：' + apiErrorMessage(err) }
+  } finally {
+    selTranslating.value = false
   }
 }
 
@@ -622,6 +806,43 @@ async function removeBookmark(b: BookmarkItem): Promise<void> {
       </button>
     </div>
 
+    <!-- 个人书籍 AI 辅助状态条：水平 / 难度 / 任务进度（静默失败，不阻断阅读） -->
+    <div v-if="isPersonal && bookId"
+      class="rounded-2xl bg-white border border-neutral-100 px-4 py-2.5 mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
+      <span class="text-soft">我的水平
+        <b class="text-ink">{{ myLevel || 'B1' }}</b>
+        <span class="ml-1 px-1.5 py-0.5 rounded font-semibold"
+          :class="myLevel ? 'bg-green-50 text-green-600' : 'bg-neutral-100 text-neutral-400'">
+          {{ myLevel ? '正式测试' : '默认估算' }}
+        </span>
+      </span>
+      <span class="text-soft">全书难度
+        <b v-if="analysisReport" class="text-ink">{{ analysisReport.overall_level }} · {{ analysisReport.difficulty_score }} 分</b>
+        <b v-else class="text-neutral-400">—</b>
+      </span>
+      <span v-if="analysisStatus" class="text-soft">
+        分析
+        <template v-if="['pending', 'running'].includes(analysisStatus.status)">
+          <i class="fa fa-circle-o-notch fa-spin text-accent-500 mx-0.5"></i>
+          <b class="text-ink">{{ analysisStatus.completed_chapters }}/{{ analysisStatus.total_chapters }} 章</b>
+        </template>
+        <b v-else-if="analysisStatus.status === 'completed'" class="text-green-600">已完成</b>
+        <b v-else-if="analysisStatus.status === 'failed'" class="text-red-500">失败（不影响阅读）</b>
+        <b v-else class="text-neutral-400">已取消</b>
+      </span>
+      <span v-else class="text-soft">分析<b class="text-neutral-400">未生成</b></span>
+      <span v-if="predictionLoading" class="text-soft"><i class="fa fa-circle-o-notch fa-spin text-accent-500 mr-1"></i>预测中</span>
+      <span v-else-if="predictionError" class="text-red-500">
+        <i class="fa fa-exclamation-circle mr-1"></i>生词预测加载失败
+        <button @click="retryPrediction" class="underline text-accent-600 ml-0.5">重试</button>
+      </span>
+      <span class="ml-auto text-soft hidden md:flex items-center gap-2">
+        <span class="inline-block w-3.5 border-b-2 border-dotted border-accent-500"></span>预测生词
+        <span class="inline-block w-3.5 border-b-2 border-dotted border-emerald-500"></span>已收藏
+        <span class="inline-block w-4 h-3 rounded-sm bg-amber-200/70"></span>长难句
+      </span>
+    </div>
+
     <!-- 阅读框 -->
     <div class="rounded-3xl bg-white border border-neutral-100 shadow-card flex flex-col overflow-hidden relative" :style="{ height: shellHeight }">
       <!-- 书签列表面板 -->
@@ -687,7 +908,12 @@ async function removeBookmark(b: BookmarkItem): Promise<void> {
         <div ref="pagesShell" class="flex-1 min-h-0 px-8 lg:px-10 pt-6 pb-14 overflow-hidden bg-[#FBF9F3]"
           @click="onContentClick" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd">
           <div ref="pagesInner" class="prose-book text-[17px] text-ink will-change-transform h-full">
-            <p v-for="(p, i) in chapter.content.split(/\n\s*\n/).filter(s => s.trim())" :key="i">{{ p.trim() }}</p>
+            <!-- 正文段落：个人书预测高亮在数据层切片后由 Vue 渲染，不改 DOM 不碰 HTML 字符串 -->
+            <p v-for="(p, i) in displayParas" :key="i"><template v-for="(s, j) in p.segs" :key="j"><span
+              :data-era-word="s.word?.word || undefined"
+              :data-era-sentence="s.sentence ? '1' : undefined"
+              :class="{ 'pred-word': !!s.word, 'pred-saved': !!s.word && isWordSaved(s.word.word), 'pred-sentence': !!s.sentence }"
+            >{{ s.text }}</span></template></p>
 
             <!-- 章末过渡页：翻到末页后引导进入下一章，替代硬跳章 -->
             <div class="chapter-end flex flex-col items-center justify-center text-center gap-4 mt-12 py-10">
@@ -738,7 +964,8 @@ async function removeBookmark(b: BookmarkItem): Promise<void> {
     @ask="askQuestion" @translate-page="translatePage" />
 
   <!-- ============ 点词查义浮层 ============ -->
-  <WordLookupPopup v-if="lookup" :lookup="lookup" :show-save="!isPersonal" @close="lookup = null" @save="saveToVocabulary" />
+  <WordLookupPopup v-if="lookup" :lookup="lookup" show-save :prediction="lookupPrediction"
+    @close="lookup = null" @save="saveToVocabulary" @remove="removeFromVocabulary" />
 
   <!-- ============ 划句翻译浮层 ============ -->
   <SelectionTranslatePopup :bar="selBar" :result="selResult" :translating="selTranslating"
@@ -748,3 +975,29 @@ async function removeBookmark(b: BookmarkItem): Promise<void> {
   <AiFab v-show="!drawerOpen" @toggle="drawerOpen = !drawerOpen" />
   </div>
 </template>
+
+<style scoped>
+/* 个人书预测高亮：轻量样式，不改变排版（纯 inline，不影响分页与段落结构） */
+.pred-word {
+  cursor: pointer;
+  border-bottom: 2px dotted rgba(249, 115, 22, 0.55);
+  padding-bottom: 1px;
+}
+.pred-word:hover {
+  background: rgba(249, 115, 22, 0.08);
+}
+/* 生词本已收藏的词：绿色虚线以示区别 */
+.pred-word.pred-saved {
+  border-bottom-color: rgba(16, 185, 129, 0.6);
+  background: rgba(16, 185, 129, 0.07);
+}
+/* 长难句：淡黄底色 */
+.pred-sentence {
+  cursor: pointer;
+  background: rgba(252, 211, 77, 0.28);
+  border-radius: 2px;
+}
+.pred-sentence:hover {
+  background: rgba(252, 211, 77, 0.45);
+}
+</style>

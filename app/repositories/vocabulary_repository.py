@@ -32,10 +32,10 @@ class VocabularyRepository:
         return result.scalar_one_or_none()
 
     async def add(
-        self, user_id: int, book_id: int, word: str,
+        self, user_id: int, book_id: int | None, word: str,
         chapter_index: int, context_sentence: str | None,
     ) -> UserVocabulary:
-        """收录生词（词已归一化为小写）。
+        """收录生词（词已归一化为小写）；book_id 为空表示来自个人书籍。
 
         原子插入：并发重复收录时唯一约束兜底，冲突则返回已有条目（幂等）。
         """

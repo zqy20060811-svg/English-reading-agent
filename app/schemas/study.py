@@ -16,7 +16,8 @@ class VocabularyAddRequest(BaseModel):
     """收录生词请求"""
 
     word: str = Field(min_length=1, max_length=MAX_WORD_LEN, description="生词（将归一化为小写）")
-    book_id: int = Field(gt=0, description="收录时所在书籍 id")
+    # 公共书必传；个人书籍收录时不传（个人书不在公共 books 表）
+    book_id: int | None = Field(default=None, gt=0, description="收录时所在公共书籍 id（个人书为空）")
     chapter_index: int = Field(default=1, ge=1, description="收录时所在章节")
     context_sentence: str | None = Field(
         default=None, max_length=MAX_CONTEXT_LEN, description="收录时的上下文例句（可选）"
@@ -29,8 +30,8 @@ class VocabularyOut(BaseModel):
     model_config = {"from_attributes": True}
 
     id: int
-    book_id: int
-    book_title: str = ""  # 联表补充，便于展示来源
+    book_id: int | None
+    book_title: str = ""  # 联表补充，便于展示来源（个人书收录为空）
     word: str
     context_sentence: str | None
     chapter_index: int

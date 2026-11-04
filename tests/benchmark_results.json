@@ -1,13 +1,13 @@
 {
-  "run_at": "2026-11-03T12:39:15.801774+00:00",
+  "run_at": "2026-11-04T07:01:27.048834+00:00",
   "metrics": {
     "recall@5_vector": 0.9048,
     "recall@5_hybrid": 0.8571,
     "recall@5_rewrite": 0.9048,
     "mrr_vector": 0.7794,
     "mrr_hybrid": 0.8016,
-    "mrr_rewrite": 0.8111,
-    "avg_latency_ms": 35.9
+    "mrr_rewrite": 0.7873,
+    "avg_latency_ms": 17.6
   },
   "rows": [
     {
@@ -42,8 +42,8 @@
         1
       ],
       "miss_class": "命中",
-      "latency_ms": 64.6,
-      "rewrite_latency_ms": 1349.8
+      "latency_ms": 39.6,
+      "rewrite_latency_ms": 1841.0
     },
     {
       "id": "q2",
@@ -54,7 +54,7 @@
       "vec_rank": 1,
       "hybrid_rank": 1,
       "rewrite_rank": 1,
-      "rewritten_query": "March Hare Hatter time stopped",
+      "rewritten_query": "March Hare Hatter time stopped why",
       "vec_top5": [
         7,
         9,
@@ -77,8 +77,8 @@
         7
       ],
       "miss_class": "命中",
-      "latency_ms": 26.2,
-      "rewrite_latency_ms": 1356.2
+      "latency_ms": 6.6,
+      "rewrite_latency_ms": 1833.1
     },
     {
       "id": "q3",
@@ -112,8 +112,8 @@
         8
       ],
       "miss_class": "命中",
-      "latency_ms": 28.7,
-      "rewrite_latency_ms": 1376.3
+      "latency_ms": 7.4,
+      "rewrite_latency_ms": 1221.0
     },
     {
       "id": "q4",
@@ -147,8 +147,8 @@
         3
       ],
       "miss_class": "命中",
-      "latency_ms": 32.8,
-      "rewrite_latency_ms": 1184.0
+      "latency_ms": 8.7,
+      "rewrite_latency_ms": 1192.4
     },
     {
       "id": "q5",
@@ -182,8 +182,8 @@
         4
       ],
       "miss_class": "命中",
-      "latency_ms": 32.1,
-      "rewrite_latency_ms": 1373.4
+      "latency_ms": 8.1,
+      "rewrite_latency_ms": 1152.7
     },
     {
       "id": "q7",
@@ -217,8 +217,8 @@
         12
       ],
       "miss_class": "召回缺失_查询改写方向",
-      "latency_ms": 15.0,
-      "rewrite_latency_ms": 1909.8
+      "latency_ms": 14.2,
+      "rewrite_latency_ms": 1180.9
     },
     {
       "id": "q8",
@@ -252,8 +252,8 @@
         54
       ],
       "miss_class": "命中",
-      "latency_ms": 23.1,
-      "rewrite_latency_ms": 1393.7
+      "latency_ms": 30.2,
+      "rewrite_latency_ms": 1375.7
     },
     {
       "id": "q9",
@@ -287,8 +287,8 @@
         6
       ],
       "miss_class": "命中",
-      "latency_ms": 9.7,
-      "rewrite_latency_ms": 1285.7
+      "latency_ms": 9.8,
+      "rewrite_latency_ms": 1610.3
     },
     {
       "id": "q10",
@@ -322,8 +322,8 @@
         1
       ],
       "miss_class": "排序问题_Reranker方向",
-      "latency_ms": 40.2,
-      "rewrite_latency_ms": 2395.4
+      "latency_ms": 9.8,
+      "rewrite_latency_ms": 1688.0
     },
     {
       "id": "q11",
@@ -357,8 +357,8 @@
         3
       ],
       "miss_class": "命中",
-      "latency_ms": 45.2,
-      "rewrite_latency_ms": 1350.6
+      "latency_ms": 31.8,
+      "rewrite_latency_ms": 1482.3
     },
     {
       "id": "q12",
@@ -392,8 +392,8 @@
         1
       ],
       "miss_class": "命中",
-      "latency_ms": 51.9,
-      "rewrite_latency_ms": 1290.4
+      "latency_ms": 27.7,
+      "rewrite_latency_ms": 1493.0
     },
     {
       "id": "q13",
@@ -427,8 +427,8 @@
         4
       ],
       "miss_class": "命中",
-      "latency_ms": 40.0,
-      "rewrite_latency_ms": 1271.5
+      "latency_ms": 15.7,
+      "rewrite_latency_ms": 1268.7
     },
     {
       "id": "q14",
@@ -439,7 +439,7 @@
       "vec_rank": 1,
       "hybrid_rank": 1,
       "rewrite_rank": 1,
-      "rewritten_query": "Cheshire Cat offer directions bargain",
+      "rewritten_query": "Cheshire Cat directions bargain",
       "vec_top5": [
         6,
         8,
@@ -462,8 +462,8 @@
         6
       ],
       "miss_class": "命中",
-      "latency_ms": 32.2,
-      "rewrite_latency_ms": 1317.3
+      "latency_ms": 11.5,
+      "rewrite_latency_ms": 1191.5
     },
     {
       "id": "q15",
@@ -497,8 +497,8 @@
         1
       ],
       "miss_class": "命中",
-      "latency_ms": 30.1,
-      "rewrite_latency_ms": 1382.1
+      "latency_ms": 10.0,
+      "rewrite_latency_ms": 1400.9
     },
     {
       "id": "q16",
@@ -532,8 +532,8 @@
         2
       ],
       "miss_class": "命中",
-      "latency_ms": 54.7,
-      "rewrite_latency_ms": 1329.8
+      "latency_ms": 32.9,
+      "rewrite_latency_ms": 1872.1
     },
     {
       "id": "q17",
@@ -567,8 +567,8 @@
         1
       ],
       "miss_class": "命中",
-      "latency_ms": 52.5,
-      "rewrite_latency_ms": 1305.0
+      "latency_ms": 29.6,
+      "rewrite_latency_ms": 1404.5
     },
     {
       "id": "q18",
@@ -602,8 +602,8 @@
         8
       ],
       "miss_class": "命中",
-      "latency_ms": 32.7,
-      "rewrite_latency_ms": 1412.1
+      "latency_ms": 6.0,
+      "rewrite_latency_ms": 2243.9
     },
     {
       "id": "q19",
@@ -614,7 +614,7 @@
       "vec_rank": 1,
       "hybrid_rank": 1,
       "rewrite_rank": 1,
-      "rewritten_query": "Scrooge Fred relation",
+      "rewritten_query": "Scrooge relation Fred",
       "vec_top5": [
         3,
         5,
@@ -631,14 +631,14 @@
       ],
       "rewrite_top5": [
         3,
-        3,
         5,
         3,
-        5
+        5,
+        3
       ],
       "miss_class": "命中",
-      "latency_ms": 54.4,
-      "rewrite_latency_ms": 1280.1
+      "latency_ms": 26.6,
+      "rewrite_latency_ms": 1775.5
     },
     {
       "id": "q20",
@@ -648,8 +648,8 @@
       "ft_hits": 10,
       "vec_rank": 3,
       "hybrid_rank": 2,
-      "rewrite_rank": 3,
-      "rewritten_query": "Jim Hawkins adopted by Squire Trelawney; hiding in apple barrel",
+      "rewrite_rank": 2,
+      "rewritten_query": "Treasure Island narrator adopted apple barrel hiding",
       "vec_top5": [
         12,
         10,
@@ -666,14 +666,14 @@
       ],
       "rewrite_top5": [
         12,
-        6,
         1,
-        6,
+        10,
+        1,
         28
       ],
       "miss_class": "命中",
-      "latency_ms": 27.9,
-      "rewrite_latency_ms": 2310.9
+      "latency_ms": 30.5,
+      "rewrite_latency_ms": 1326.1
     },
     {
       "id": "q21",
@@ -707,8 +707,8 @@
         1
       ],
       "miss_class": "命中",
-      "latency_ms": 29.2,
-      "rewrite_latency_ms": 1525.0
+      "latency_ms": 6.9,
+      "rewrite_latency_ms": 1108.7
     },
     {
       "id": "q22",
@@ -718,8 +718,8 @@
       "ft_hits": 10,
       "vec_rank": 1,
       "hybrid_rank": 3,
-      "rewrite_rank": 1,
-      "rewritten_query": "curiouser meaning Alice in Wonderland",
+      "rewrite_rank": 3,
+      "rewritten_query": "curiouser meaning Alice in Wonderland word",
       "vec_top5": [
         2,
         10,
@@ -735,15 +735,15 @@
         3
       ],
       "rewrite_top5": [
+        10,
+        10,
         2,
-        10,
-        10,
         7,
-        7
+        12
       ],
       "miss_class": "命中",
-      "latency_ms": 51.3,
-      "rewrite_latency_ms": 1293.2
+      "latency_ms": 32.9,
+      "rewrite_latency_ms": 2026.6
     },
     {
       "id": "q23",
@@ -777,8 +777,8 @@
         11
       ],
       "miss_class": "无答案题",
-      "latency_ms": 28.5,
-      "rewrite_latency_ms": 1452.8
+      "latency_ms": 7.7,
+      "rewrite_latency_ms": 1130.4
     },
     {
       "id": "q24",
@@ -812,8 +812,8 @@
         3
       ],
       "miss_class": "无答案题",
-      "latency_ms": 28.8,
-      "rewrite_latency_ms": 1426.2
+      "latency_ms": 8.0,
+      "rewrite_latency_ms": 2489.3
     },
     {
       "id": "q25",
@@ -847,8 +847,8 @@
         3
       ],
       "miss_class": "无答案题",
-      "latency_ms": 28.8,
-      "rewrite_latency_ms": 1016.9
+      "latency_ms": 11.1,
+      "rewrite_latency_ms": 1398.4
     }
   ]
 }

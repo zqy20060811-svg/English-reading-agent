@@ -18,9 +18,9 @@ class UserVocabulary(Base):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"), index=True
     )
-    book_id: Mapped[int] = mapped_column(
+    book_id: Mapped[int | None] = mapped_column(
         ForeignKey("books.id"), index=True
-    )  # 首次收录时所在的书
+    )  # 首次收录时所在的书；个人书籍收录时为 NULL（个人书不在公共 books 表）
     word: Mapped[str] = mapped_column(String(64), index=True)  # 归一化小写
     # 收录时的上下文例句（可选，便于回忆词义场景）
     context_sentence: Mapped[str | None] = mapped_column(Text, nullable=True)

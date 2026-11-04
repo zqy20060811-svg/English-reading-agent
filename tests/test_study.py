@@ -147,6 +147,38 @@ def test_add_word_rejects_unknown_book():
     assert e.value.status_code == 400
 
 
+def test_add_word_without_book_id_personal_book():
+    """个人书籍收录：不传 book_id，跳过书籍校验，book_title 为空"""
+    svc = make_vocab_service()
+    out = asyncio.run(svc.add_word(FakeUser(), VocabularyAddRequest(
+        word="  Enterprise ", chapter_index=3, context_sentence="It was an enterprise.")))
+    assert out.word == "enterprise"
+    assert out.book_id is None
+    assert out.book_title == ""
+    assert out.chapter_index == 3
+
+
+def test_add_word_personal_book_idempotent():
+    """个人书收录同词幂等，返回已有条目"""
+    svc = make_vocab_service()
+    first = asyncio.run(svc.add_word(FakeUser(), VocabularyAddRequest(word="enterprise")))
+    second = asyncio.run(svc.add_word(FakeUser(), VocabularyAddRequest(word="ENTERPRISE", book_id=1)))
+    assert first.id == second.id
+    assert second.book_id is None  # 返回的是首次收录条目
+    assert len(svc.vocab_repo.rows) == 1
+
+
+def test_list_words_mixed_null_and_public_book_ids():
+    """个人书（book_id 为空）与公共书生词混合列表，公共书带书名、个人书书名为空"""
+    svc = make_vocab_service()
+    asyncio.run(svc.add_word(FakeUser(), VocabularyAddRequest(word="private", book_id=1)))
+    asyncio.run(svc.add_word(FakeUser(), VocabularyAddRequest(word="personal")))
+    rows = asyncio.run(svc.list_words(FakeUser()))
+    assert [r.word for r in rows] == ["personal", "private"]  # 倒序：后收录在前
+    assert rows[0].book_id is None and rows[0].book_title == ""
+    assert rows[1].book_title == "Alice"
+
+
 def test_remove_word_missing_raises_404():
     svc = make_vocab_service()
     with pytest.raises(HTTPException) as e:

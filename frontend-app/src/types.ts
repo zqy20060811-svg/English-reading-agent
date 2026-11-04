@@ -207,6 +207,33 @@ export interface PersonalBookReport {
   completed_at: string
 }
 
+// ============ 个人书籍个性化预测（/personal/books/{id}/chapters/{n}/prediction） ============
+
+// 预测生词候选
+export interface PredictedWord {
+  word: string          // 归一化小写
+  level: string         // CEFR 等级（A1~C2），词典未收录为 unknown
+  count: number         // 在本章出现次数
+  in_vocabulary: boolean // 是否已在用户生词本中
+}
+
+// 预测长难句候选
+export interface PredictedSentence {
+  sentence_index: number  // 句子在章节中的序号（1 开始）
+  char_start: number | null // 章节正文中的字符偏移（定位失败为 null）
+  word_count: number
+  clause_markers: number
+  text: string
+}
+
+// 单章预测结果
+export interface ChapterPrediction {
+  chapter_index: number
+  title: string
+  words: PredictedWord[]
+  sentences: PredictedSentence[]
+}
+
 // ============ 管理后台 ============
 
 export interface AdminBook {
