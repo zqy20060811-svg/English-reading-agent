@@ -8,10 +8,7 @@
 //   用与渲染完全相同的切分规则还原每段的起始偏移，保证映射精确
 // - 长难句定位失败（偏移对不上、原文找不到）时静默跳过，绝不影响正文显示
 
-import type { PredictedSentence, PredictedWord } from '../types'
-
-// 与后端 text_statistics.tokenize 相同口径的切词正则
-const WORD_RE = /[A-Za-z][A-Za-z'-]*/g
+import type { PredictedSentence } from '../types'
 
 /** 词条归一化：与后端 cefr_lexicon.normalize_token 一致（小写 + 去尾部撇号） */
 export function normalizeWord(token: string): string {
@@ -53,11 +50,6 @@ export function mapParagraphs(content: string): MappedParagraph[] {
     pos += m.index! + m[0].length
   }
   return out
-}
-
-/** 生词查找表：归一化小写 → 预测条目 */
-export function wordMapOf(words: PredictedWord[]): Map<string, PredictedWord> {
-  return new Map(words.map(w => [w.word, w]))
 }
 
 /** 长难句在某一段中的局部范围（相对展示文本），null = 定位失败静默跳过 */
@@ -104,37 +96,26 @@ export function locateSentence(
   return null
 }
 
-/** 渲染片段：text 为不可再分的文本；word/sentence 标记驱动高亮样式与点击行为 */
+/** 渲染片段：text 为不可再分的文本；sentence 标记驱动长难句高亮样式与点击行为 */
 export interface ParaSegment {
   text: string
-  word?: PredictedWord
   sentence?: boolean
 }
 
 /**
- * 把段落展示文本切成渲染片段：
- * - 先按生词与长难句的全部边界切分（两者可嵌套：句内的生词同时带两个标记）
- * - 相邻的普通文本合并，保持片段数最少
+ * 把段落展示文本按长难句范围切成渲染片段（不做生词高亮）：
+ * 句内片段带 sentence 标记，相邻普通文本合并，保持片段数最少
  */
 export function buildSegments(
   text: string,
-  words: Map<string, PredictedWord>,
   sentenceRanges: SentenceRange[],
 ): ParaSegment[] {
-  if (!words.size && !sentenceRanges.length) return [{ text }]
-
-  const wordHits: Array<{ start: number; end: number; word: PredictedWord }> = []
-  const cuts = new Set<number>([0, text.length])
-  for (const m of text.matchAll(WORD_RE)) {
-    const w = words.get(normalizeWord(m[0]))
-    if (!w) continue
-    wordHits.push({ start: m.index!, end: m.index! + m[0].length, word: w })
-    cuts.add(m.index!)
-    cuts.add(m.index! + m[0].length)
-  }
   const sents = sentenceRanges
     .map(r => ({ start: Math.max(0, r.start), end: Math.min(text.length, r.end) }))
     .filter(r => r.end > r.start)
+  if (!sents.length) return [{ text }]
+
+  const cuts = new Set<number>([0, text.length])
   for (const r of sents) {
     cuts.add(r.start)
     cuts.add(r.end)
@@ -147,14 +128,12 @@ export function buildSegments(
     const b = points[i + 1]
     if (b <= a) continue
     const piece = text.slice(a, b)
-    const inSentence = sents.some(r => r.start <= a && b <= r.end)
-    const hit = wordHits.find(w => w.start === a && w.end === b)
-    if (!inSentence && !hit) {
-      const last = segs[segs.length - 1]
-      if (last && !last.word && !last.sentence) last.text += piece
-      else segs.push({ text: piece })
+    if (sents.some(r => r.start <= a && b <= r.end)) {
+      segs.push({ text: piece, sentence: true })
     } else {
-      segs.push({ text: piece, word: hit?.word, sentence: inSentence || undefined })
+      const last = segs[segs.length - 1]
+      if (last && !last.sentence) last.text += piece
+      else segs.push({ text: piece })
     }
   }
   return segs

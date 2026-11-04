@@ -1,17 +1,12 @@
-// 个人书籍预测数据处理纯逻辑测试：段落偏移映射 / 生词匹配 / 长难句定位 / 片段切分
+// 个人书籍预测数据处理纯逻辑测试：段落偏移映射 / 长难句定位 / 片段切分（不做生词高亮）
 import { describe, expect, it } from 'vitest'
 import {
   buildSegments,
   locateSentence,
   mapParagraphs,
   normalizeWord,
-  wordMapOf,
 } from '../src/utils/personalPrediction'
-import type { PredictedSentence, PredictedWord } from '../src/types'
-
-function word(w: string, count = 1, inVocab = false): PredictedWord {
-  return { word: w, level: 'B2', count, in_vocabulary: inVocab }
-}
+import type { PredictedSentence } from '../src/types'
 
 function sentence(text: string, charStart: number | null, index = 1): PredictedSentence {
   return { sentence_index: index, char_start: charStart, word_count: 10, clause_markers: 2, text }
@@ -77,43 +72,33 @@ describe('locateSentence', () => {
   })
 })
 
-describe('buildSegments', () => {
-  it('同一单词多次出现全部命中', () => {
-    const words = wordMapOf([word('rabbit', 3)])
-    const segs = buildSegments('The rabbit ran. Another rabbit slept.', words, [])
-    const marked = segs.filter(s => s.word)
-    expect(marked).toHaveLength(2)
-    expect(marked.every(s => s.word!.word === 'rabbit')).toBe(true)
-    expect(segs.map(s => s.text).join('')).toBe('The rabbit ran. Another rabbit slept.')
-  })
-
-  it('所有格与大小写归一化后命中', () => {
-    const words = wordMapOf([word('wonder')])
-    const segs = buildSegments('The Wonder was strange.', words, [])
-    expect(segs.filter(s => s.word).map(s => s.text)).toEqual(['Wonder'])
-  })
-
-  it('生词嵌套在长难句内时同时带两个标记', () => {
-    const words = wordMapOf([word('committee')])
-    const text = 'The plan which the committee approved was flawed.'
-    const segs = buildSegments(text, words, [{ start: 0, end: text.length }])
-    const hit = segs.find(s => s.word)!
-    expect(hit.sentence).toBe(true)
-    expect(hit.word!.word).toBe('committee')
-    expect(segs.map(s => s.text).join('')).toBe(text)
-  })
-
-  it('普通文本片段合并且不产生标记', () => {
-    const words = wordMapOf([word('fox')])
-    const segs = buildSegments('A quick brown fox.', words, [])
+describe('buildSegments（仅长难句切片，无生词高亮）', () => {
+  it('句子片段带标记，前后普通文本合并且无标记', () => {
+    const segs = buildSegments('Before text. The long sentence here. After text.', [{ start: 13, end: 36 }])
     expect(segs).toEqual([
-      { text: 'A quick brown ' },
-      { text: 'fox', word: words.get('fox'), sentence: undefined },
-      { text: '.' },
+      { text: 'Before text. ' },
+      { text: 'The long sentence here.', sentence: true },
+      { text: ' After text.' },
     ])
   })
 
-  it('无生词无长难句时整段作为单一片段', () => {
-    expect(buildSegments('Plain text.', wordMapOf([]), [])).toEqual([{ text: 'Plain text.' }])
+  it('多个长难句正确切分', () => {
+    const segs = buildSegments('One. Two. Three.', [{ start: 0, end: 4 }, { start: 5, end: 9 }])
+    expect(segs).toEqual([
+      { text: 'One.', sentence: true },
+      { text: ' ' },
+      { text: 'Two.', sentence: true },
+      { text: ' Three.' },
+    ])
+  })
+
+  it('无长难句时整段作为单一片段', () => {
+    expect(buildSegments('Plain text.', [])).toEqual([{ text: 'Plain text.' }])
+  })
+
+  it('范围越界被收敛且不破坏文本拼接', () => {
+    const segs = buildSegments('Hello world.', [{ start: -5, end: 100 }])
+    expect(segs.map(s => s.text).join('')).toBe('Hello world.')
+    expect(segs[0].sentence).toBe(true)
   })
 })

@@ -6,7 +6,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { api, LAST_BOOK_KEY, apiErrorMessage } from '../api/client'
 import { loadBooks, store, toast } from '../store'
 import type { Book, BookmarkItem, BookInteraction, Chapter, ChapterMeta, ChapterPrediction, LookupPop, PersonalAnalysisTask, PersonalBook, PersonalBookReport, PredictedWord, QAItem, ReadingProgress, SelBubble, VocabItem, WordLookup } from '../types'
-import { buildSegments, locateSentence, mapParagraphs, wordMapOf, type ParaSegment } from '../utils/personalPrediction'
+import { buildSegments, locateSentence, mapParagraphs, normalizeWord, type ParaSegment } from '../utils/personalPrediction'
 import { extractWordAt } from '../utils/wordExtract'
 import AiDrawer from '../components/reader/AiDrawer.vue'
 import AiFab from '../components/reader/AiFab.vue'
@@ -506,24 +506,19 @@ async function loadMyVocabulary(): Promise<void> {
   } catch { /* 收录状态加载失败只影响样式与按钮 */ }
 }
 
-function isWordSaved(word: string): boolean {
-  return savedWordIds.value.has(word)
-}
-
-// ================= 正文渲染片段（高亮在数据层切片，Vue 渲染，不碰 DOM） =================
+// ================= 正文渲染片段（长难句高亮在数据层切片，Vue 渲染，不碰 DOM；不做生词高亮） =================
 const displayParas = computed<{ text: string; segs: ParaSegment[] }[]>(() => {
   if (!chapter.value) return []
   const paras = mapParagraphs(chapter.value.content)
   if (!isPersonal.value || !prediction.value) {
     return paras.map(p => ({ text: p.text, segs: [{ text: p.text }] }))
   }
-  const words = wordMapOf(prediction.value.words)
   const located = prediction.value.sentences
     .map(s => locateSentence(paras, s))
     .filter((r): r is NonNullable<typeof r> => r !== null)
   return paras.map((p, i) => ({
     text: p.text,
-    segs: buildSegments(p.text, words, located.filter(r => r.paraIndex === i).map(r => r.range)),
+    segs: buildSegments(p.text, located.filter(r => r.paraIndex === i).map(r => r.range)),
   }))
 })
 
@@ -545,16 +540,20 @@ async function onContentClick(e: MouseEvent): Promise<void> {
   if (window.getSelection()?.toString()) return // 划词中不触发点词
   const target = e.target as HTMLElement
   if (!target.closest('p')) return // 只对正文段落生效（章末按钮等不受影响）
-  // 个人书：预测生词 / 长难句的高亮交互优先
+  // 个人书：长难句高亮点击优先
   if (isPersonal.value) {
-    const wordEl = target.closest('span[data-era-word]') as HTMLElement | null
-    if (wordEl) { openPredictionWordPopup(wordEl, e); return }
     const sentEl = target.closest('span[data-era-sentence]') as HTMLElement | null
     if (sentEl) { openSentenceTranslate(sentEl, e); return }
   }
   const hit = extractWordAt(document, e.clientX, e.clientY)
   if (!hit || !bookId.value || !chapter.value) return
-  openLookupPopup(hit.word.toLowerCase(), hit.sentence, popupPos(e), null)
+  // 个人书：点击的词若在预测生词表中，弹层附加 CEFR / 章内次数 / 收藏状态
+  let pw: PredictedWord | null = null
+  if (isPersonal.value && prediction.value) {
+    const norm = normalizeWord(hit.word)
+    pw = prediction.value.words.find(w => w.word === norm) ?? null
+  }
+  openLookupPopup(hit.word.toLowerCase(), hit.sentence, popupPos(e), pw)
 }
 
 /** 打开查词弹层：公共书任意词 / 个人书预测生词共用 */
@@ -572,16 +571,6 @@ async function openLookupPopup(word: string, sentence: string, pos: { x: number;
   } finally {
     if (lookup.value && lookup.value.word === word) lookup.value.loading = false
   }
-}
-
-function openPredictionWordPopup(el: HTMLElement, e: MouseEvent): void {
-  const word = el.dataset.eraWord || ''
-  if (!word || !chapter.value) return
-  const pw = prediction.value?.words.find(w => w.word === word) ?? null
-  // 上下文例句：优先所在长难句，否则所在段落
-  const sentEl = el.closest('span[data-era-sentence]') as HTMLElement | null
-  const sentence = (sentEl?.textContent || el.closest('p')?.textContent || '').trim().slice(0, 400)
-  openLookupPopup(word, sentence, popupPos(e), pw)
 }
 
 async function saveToVocabulary(): Promise<void> {
@@ -833,12 +822,10 @@ async function removeBookmark(b: BookmarkItem): Promise<void> {
       <span v-else class="text-soft">分析<b class="text-neutral-400">未生成</b></span>
       <span v-if="predictionLoading" class="text-soft"><i class="fa fa-circle-o-notch fa-spin text-accent-500 mr-1"></i>预测中</span>
       <span v-else-if="predictionError" class="text-red-500">
-        <i class="fa fa-exclamation-circle mr-1"></i>生词预测加载失败
+        <i class="fa fa-exclamation-circle mr-1"></i>预测加载失败
         <button @click="retryPrediction" class="underline text-accent-600 ml-0.5">重试</button>
       </span>
       <span class="ml-auto text-soft hidden md:flex items-center gap-2">
-        <span class="inline-block w-3.5 border-b-2 border-dotted border-accent-500"></span>预测生词
-        <span class="inline-block w-3.5 border-b-2 border-dotted border-emerald-500"></span>已收藏
         <span class="inline-block w-4 h-3 rounded-sm bg-amber-200/70"></span>长难句
       </span>
     </div>
@@ -908,11 +895,10 @@ async function removeBookmark(b: BookmarkItem): Promise<void> {
         <div ref="pagesShell" class="flex-1 min-h-0 px-8 lg:px-10 pt-6 pb-14 overflow-hidden bg-[#FBF9F3]"
           @click="onContentClick" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd">
           <div ref="pagesInner" class="prose-book text-[17px] text-ink will-change-transform h-full">
-            <!-- 正文段落：个人书预测高亮在数据层切片后由 Vue 渲染，不改 DOM 不碰 HTML 字符串 -->
+            <!-- 正文段落：个人书长难句高亮在数据层切片后由 Vue 渲染，不改 DOM 不碰 HTML 字符串；不做生词高亮 -->
             <p v-for="(p, i) in displayParas" :key="i"><template v-for="(s, j) in p.segs" :key="j"><span
-              :data-era-word="s.word?.word || undefined"
               :data-era-sentence="s.sentence ? '1' : undefined"
-              :class="{ 'pred-word': !!s.word, 'pred-saved': !!s.word && isWordSaved(s.word.word), 'pred-sentence': !!s.sentence }"
+              :class="{ 'pred-sentence': !!s.sentence }"
             >{{ s.text }}</span></template></p>
 
             <!-- 章末过渡页：翻到末页后引导进入下一章，替代硬跳章 -->
@@ -977,21 +963,7 @@ async function removeBookmark(b: BookmarkItem): Promise<void> {
 </template>
 
 <style scoped>
-/* 个人书预测高亮：轻量样式，不改变排版（纯 inline，不影响分页与段落结构） */
-.pred-word {
-  cursor: pointer;
-  border-bottom: 2px dotted rgba(249, 115, 22, 0.55);
-  padding-bottom: 1px;
-}
-.pred-word:hover {
-  background: rgba(249, 115, 22, 0.08);
-}
-/* 生词本已收藏的词：绿色虚线以示区别 */
-.pred-word.pred-saved {
-  border-bottom-color: rgba(16, 185, 129, 0.6);
-  background: rgba(16, 185, 129, 0.07);
-}
-/* 长难句：淡黄底色 */
+/* 个人书长难句高亮：淡黄底色，纯 inline 不影响分页与段落结构 */
 .pred-sentence {
   cursor: pointer;
   background: rgba(252, 211, 77, 0.28);
