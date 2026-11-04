@@ -12,6 +12,7 @@ from app.schemas.personal_analysis import (
     PersonalBookAnalysisOut,
     PersonalChapterAnalysisOut,
 )
+from app.schemas.personal_prediction import BookPrediction, ChapterPrediction
 from app.schemas.personal_book import (
     PersonalBookOut,
     PersonalBookUploadOut,
@@ -27,6 +28,10 @@ from app.services.personal_analysis_service import (
 from app.services.personal_book_service import (
     PersonalBookService,
     get_personal_book_service,
+)
+from app.services.personal_prediction_service import (
+    PersonalPredictionService,
+    get_personal_prediction_service,
 )
 from app.services.user_service import get_current_user
 
@@ -212,3 +217,30 @@ async def cancel_analysis_task(
 ):
     """取消进行中的分析任务（后台执行体感知后停止）"""
     return await service.cancel_task(current_user, personal_book_id)
+
+
+# ================= 个性化预测（阶段C：生词 + 长难句） =================
+
+
+@router.get("/{personal_book_id}/prediction", response_model=BookPrediction)
+async def get_book_prediction(
+    personal_book_id: int,
+    service: PersonalPredictionService = Depends(get_personal_prediction_service),
+    current_user=Depends(get_current_user),
+):
+    """全书个性化预测：基于用户英语水平预测每章可能的生词与长难句（即时计算，不依赖 AI 分析完成）"""
+    return await service.predict_book(current_user, personal_book_id)
+
+
+@router.get(
+    "/{personal_book_id}/chapters/{chapter_index}/prediction",
+    response_model=ChapterPrediction,
+)
+async def get_chapter_prediction(
+    personal_book_id: int,
+    chapter_index: int,
+    service: PersonalPredictionService = Depends(get_personal_prediction_service),
+    current_user=Depends(get_current_user),
+):
+    """单章个性化预测（阅读器按章拉取）"""
+    return await service.predict_chapter(current_user, personal_book_id, chapter_index)
