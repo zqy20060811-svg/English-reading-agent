@@ -2,6 +2,8 @@
 
 // BookCover 组件所需的最小书籍字段
 export interface CoverBook {
+  id?: number        // 公共书 id：封面走本地代理 /covers/{id}
+  book_id?: number   // 历史/榜单条目只有 book_id 时也支持
   title: string
   author: string
   cover_url: string | null

@@ -59,9 +59,9 @@ function openBook(bookId: number) {
 // 取书架条目的封面信息：优先真实书目，退回历史记录里的标题/封面
 function coverOf(id: number): CoverBook {
   const b = shelfBooks.value.find(x => x.id === id) || store.books.find(x => x.id === id)
-  if (b) return { title: b.title, author: b.author, cover_url: b.cover_url }
+  if (b) return { id: b.id, title: b.title, author: b.author, cover_url: b.cover_url }
   const h = history.value.find(x => x.book_id === id)
-  return { title: h?.title ?? '', author: h?.author ?? '', cover_url: h?.cover_url ?? null }
+  return { book_id: id, title: h?.title ?? '', author: h?.author ?? '', cover_url: h?.cover_url ?? null }
 }
 
 const hasContent = computed(() => history.value.length > 0 || shelfBooks.value.length > 0)

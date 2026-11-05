@@ -4,7 +4,9 @@
 """
 
 from fastapi import APIRouter, Depends, Query
+from redis.asyncio import Redis
 
+from app.core.redis import get_redis
 from app.schemas.admin import (
     AdminBookOut,
     AdminBookUpdate,
@@ -16,6 +18,7 @@ from app.schemas.admin import (
     IngestTaskOut,
 )
 from app.services.admin_service import AdminService, get_admin_service
+from app.services.book_cache import bump_books_cache
 from app.services.ingest_service import IngestService, get_ingest_service
 from app.services.user_service import User, require_admin
 
@@ -75,9 +78,12 @@ async def update_book(
     book_id: int,
     data: AdminBookUpdate,
     admin: AdminService = Depends(get_admin_service),
+    redis: Redis = Depends(get_redis),
 ):
     """上架/下架书籍：下架后书库/搜索/章节接口对普通用户立即不可见"""
-    return await admin.update_book(book_id, data)
+    book = await admin.update_book(book_id, data)
+    await bump_books_cache(redis)  # 书库内容变化，列表缓存立即失效
+    return book
 
 
 # ================= 入库任务 =================

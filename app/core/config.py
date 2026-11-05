@@ -42,6 +42,7 @@ class Settings(BaseSettings):
 
     # 个人电子书（用户上传的私人阅读材料，与公共书库完全隔离）
     PERSONAL_BOOKS_DIR: str = "data/personal"   # 原始文件存放目录（data/ 已在 gitignore）
+    COVER_CACHE_DIR: str = "data/covers"        # 书库封面图本地缓存目录（外站原图只下载一次）
     PERSONAL_MAX_UPLOAD_MB: int = 20            # 单个文件上限（MB）
     PERSONAL_MAX_BOOKS_PER_USER: int = 20       # 每用户书籍数量上限
     PERSONAL_MAX_TOTAL_MB_PER_USER: int = 200   # 每用户占用空间上限（MB）

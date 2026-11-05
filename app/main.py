@@ -10,6 +10,7 @@ from app.api.routes.admin import router as admin_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.book import router as book_router
 from app.api.routes.bookmark import router as bookmark_router
+from app.api.routes.covers import router as covers_router
 from app.api.routes.level_test import router as level_test_router
 from app.api.routes.me import router as me_router
 from app.api.routes.personal import router as personal_router
@@ -65,6 +66,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(book_router)
+app.include_router(covers_router)
 app.include_router(reading_router)
 app.include_router(ask_router)
 app.include_router(level_test_router)

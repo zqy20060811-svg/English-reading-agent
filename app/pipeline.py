@@ -10,6 +10,7 @@ import time
 from sqlalchemy import delete, select
 
 from app.chunking import recursive_split
+from app.core.redis import get_redis
 from app.db.database import AsyncSessionLocal
 from app.models.book import Book
 from app.models.book_chapter import BookChapter
@@ -202,5 +203,13 @@ async def run_ingest(gutenberg_ids: list[int], embed: bool = False) -> None:
         )
     else:
         print("[流水线] 4/4 向量化：跳过（加 --embed 启用，约 2.4 块/秒）")
+
+    # 书库内容有变化：列表缓存立即失效（旧版本 key 靠 TTL 自然过期）
+    try:
+        from app.services.book_cache import bump_books_cache
+
+        await bump_books_cache(get_redis())
+    except Exception as exc:
+        print(f"[流水线] 列表缓存失效失败（Redis 不可用？）：{exc}")
 
     print(f"[流水线] 入库完成，总耗时 {time.perf_counter() - t0:.1f}s")

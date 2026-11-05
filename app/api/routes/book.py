@@ -1,5 +1,7 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from redis.asyncio import Redis
 
+from app.core.redis import get_redis
 from app.schemas.book import BookOut, BookSyncResult, ChapterDetailOut, ChapterOut
 from app.schemas.hotness import (
     BookEventIn,
@@ -7,6 +9,7 @@ from app.schemas.hotness import (
     HotBookItem,
     InteractionStateOut,
 )
+from app.services.book_cache import bump_books_cache, get_cached_books
 from app.services.book_service import BookService, get_book_service
 from app.services.hotness_service import (
     HotnessService,
@@ -27,9 +30,13 @@ router = APIRouter(
 async def list_books(
     limit: int = Query(default=200, ge=1, le=500, description="返回数量上限"),
     service: BookService = Depends(get_book_service),
+    redis: Redis = Depends(get_redis),
 ):
-    """全部书籍列表（按入库顺序，含简介），供前端书架使用"""
-    return await service.list_all(limit)
+    """全部书籍列表（按入库顺序，含简介），供前端书架使用。
+
+    所有用户内容相同，走 Redis 缓存 10 分钟（版本号失效，见 book_cache）。
+    """
+    return await get_cached_books(redis, limit, lambda: service.list_all(limit))
 
 
 @router.get("/search", response_model=list[BookOut])
@@ -125,6 +132,11 @@ async def get_chapter(
 
 
 @router.post("/sync", response_model=BookSyncResult)
-async def sync_books(service: BookService = Depends(get_book_service)):
+async def sync_books(
+    service: BookService = Depends(get_book_service),
+    redis: Redis = Depends(get_redis),
+):
     """将本地爬取结果（data/books）的书籍信息与简介同步入库（不存正文）"""
-    return await service.sync_from_crawler()
+    result = await service.sync_from_crawler()
+    await bump_books_cache(redis)  # 书目有变化，列表缓存立即失效
+    return result
