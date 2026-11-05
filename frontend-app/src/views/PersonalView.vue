@@ -4,6 +4,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import BookCover from '../components/BookCover.vue'
 import ProgressBar from '../components/ProgressBar.vue'
+import PageBack from '../components/PageBack.vue'
 import { api } from '../api/client'
 import { LEVEL_NAMES, store, toast } from '../store'
 import type { HistoryItem } from '../types'
@@ -105,6 +106,8 @@ function fmtTime(iso: string): string {
   <div class="p-6 lg:p-10 max-w-4xl mx-auto">
     <!-- 用户信息头 -->
     <div class="flex items-center gap-5">
+      <!-- 桌面端"我的"由侧边栏头像点击进入，需要返回；移动端是底部 Tab 一级页 -->
+      <PageBack class="hidden lg:flex" />
       <div class="w-16 h-16 rounded-full bg-ink text-white flex items-center justify-center text-2xl font-bold shadow-card select-none">
         {{ (store.username[0] || 'R').toUpperCase() }}
       </div>

@@ -3,6 +3,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import BookCover from '../components/BookCover.vue'
+import PageBack from '../components/PageBack.vue'
 import { api, apiErrorMessage } from '../api/client'
 import StateBlock from '../components/StateBlock.vue'
 
@@ -52,6 +53,8 @@ function badgeClass(rank: number): string {
   <div class="p-6 lg:p-10 max-w-4xl mx-auto">
     <!-- 页头 -->
     <div class="flex items-end justify-between flex-wrap gap-3">
+      <!-- 移动端无侧边栏入口（经书库/我的进入），需要返回；桌面端侧边栏常驻 -->
+      <PageBack class="lg:hidden self-center" />
       <div>
         <h2 class="text-2xl font-extrabold flex items-center gap-2">
           <i class="fa fa-fire text-accent-500"></i>热度排行榜

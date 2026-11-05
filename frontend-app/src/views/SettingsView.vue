@@ -4,6 +4,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, logout } from '../api/client'
 import { toast } from '../store'
+import PageBack from '../components/PageBack.vue'
 
 const router = useRouter()
 
@@ -68,10 +69,15 @@ async function saveLang(): Promise<void> {
 
 <template>
   <div class="p-6 lg:p-10 max-w-2xl mx-auto">
-    <h2 class="text-2xl font-extrabold flex items-center gap-2">
-      <i class="fa fa-cog text-accent-500"></i>设置
-    </h2>
-    <p class="text-sm text-soft mt-1">账号安全与阅读偏好</p>
+    <div class="flex items-center gap-3">
+      <PageBack />
+      <div>
+        <h2 class="text-2xl font-extrabold flex items-center gap-2">
+          <i class="fa fa-cog text-accent-500"></i>设置
+        </h2>
+        <p class="text-sm text-soft mt-1">账号安全与阅读偏好</p>
+      </div>
+    </div>
 
     <!-- 修改密码 -->
     <section class="mt-8 rounded-2xl bg-white border border-neutral-100 shadow-card p-6">

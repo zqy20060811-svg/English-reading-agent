@@ -10,6 +10,7 @@ import { normalizeWord } from '../utils/personalPrediction'
 import { extractWordAt } from '../utils/wordExtract'
 import AiDrawer from '../components/reader/AiDrawer.vue'
 import AiFab from '../components/reader/AiFab.vue'
+import PageBack from '../components/PageBack.vue'
 import BookmarkPanel from '../components/reader/BookmarkPanel.vue'
 import WordLookupPopup from '../components/reader/WordLookupPopup.vue'
 import SelectionTranslatePopup from '../components/reader/SelectionTranslatePopup.vue'
@@ -709,8 +710,9 @@ async function removeBookmark(b: BookmarkItem): Promise<void> {
 <template>
   <div>
   <div class="p-6 lg:p-8 max-w-7xl mx-auto">
-    <!-- 顶部：选书 + 章节切换 -->
+    <!-- 顶部：返回 + 选书 + 章节切换 -->
     <div class="flex flex-wrap items-center gap-3 mb-4">
+      <PageBack />
       <div class="relative">
         <select :value="bookId || ''" @change="onSelectChange"
           class="appearance-none pl-4 pr-9 py-2.5 rounded-2xl bg-white border border-neutral-200 outline-none text-sm focus:border-accent-500 cursor-pointer">

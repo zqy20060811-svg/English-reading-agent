@@ -6,6 +6,7 @@ import { store, toast } from '../store'
 import { genreCn } from '../genres'
 import type { AdminBook, AdminOverview, AdminUser, AIStats, IngestTask } from '../types'
 import StateBlock from '../components/StateBlock.vue'
+import PageBack from '../components/PageBack.vue'
 
 type Tab = 'overview' | 'books' | 'tasks' | 'users' | 'ai'
 const tab = ref<Tab>('overview')
@@ -217,7 +218,10 @@ onMounted(loadOverview)
 <template>
   <div class="p-6 lg:p-8 max-w-7xl mx-auto">
     <div class="flex items-center justify-between mb-5">
-      <h1 class="text-2xl font-extrabold"><i class="fa fa-shield mr-2 text-accent-500"></i>管理后台</h1>
+      <div class="flex items-center gap-3">
+        <PageBack />
+        <h1 class="text-2xl font-extrabold"><i class="fa fa-shield mr-2 text-accent-500"></i>管理后台</h1>
+      </div>
       <span class="text-xs text-soft">{{ store.me?.username }} · 管理员</span>
     </div>
 

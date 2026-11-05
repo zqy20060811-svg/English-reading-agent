@@ -3,6 +3,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import BookCover from '../components/BookCover.vue'
+import PageBack from '../components/PageBack.vue'
 import { api } from '../api/client'
 import { DIM_NAMES, LEVEL_NAMES, loadLevel, store, toast } from '../store'
 
@@ -125,6 +126,8 @@ const detailRows = computed(() =>
 
 <template>
   <div class="p-6 lg:p-10 max-w-6xl mx-auto">
+    <!-- 移动端无侧边栏入口（经我的页进入），需要返回；桌面端侧边栏常驻 -->
+    <PageBack class="lg:hidden mb-4" />
     <!-- ============ 入口 ============ -->
     <div v-if="view === 'landing'">
       <section class="rounded-3xl bg-ink text-white p-8 lg:p-10 shadow-float relative overflow-hidden">

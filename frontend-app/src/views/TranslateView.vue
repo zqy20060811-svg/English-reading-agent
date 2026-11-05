@@ -3,6 +3,7 @@
 import { onMounted, ref } from 'vue'
 import { api } from '../api/client'
 import { toast } from '../store'
+import PageBack from '../components/PageBack.vue'
 
 // 翻译历史条目（localStorage 持久化）
 interface TranslateHistory {
@@ -122,6 +123,8 @@ function clearHistory(): void {
 <template>
   <div class="p-6 lg:p-10">
     <div class="max-w-3xl mx-auto">
+      <!-- 移动端无侧边栏入口（经我的页进入），需要返回；桌面端侧边栏常驻 -->
+      <PageBack class="lg:hidden mb-4" />
       <!-- 顶部功能标签（同传 / 批改 / 口语 预留） -->
       <div class="flex items-center gap-8 mb-5">
         <button class="relative pb-2 text-lg font-bold border-b-2 border-accent-500">
