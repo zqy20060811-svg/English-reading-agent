@@ -171,6 +171,70 @@ class TestPersonalParser:
         with pytest.raises(ParseError, match="非法路径"):
             parse_upload("evil.epub", _build_epub({"../evil.xhtml": b"<html></html>"}))
 
+    # ---------- 内嵌封面 ----------
+
+    # JPEG 文件头魔数（解析器只透传字节，不校验图片内容）
+    _JPG = b"\xff\xd8\xff\xe0" + b"fakejpeg" * 8
+
+    def _epub_with_cover(self, marker: str) -> bytes:
+        """在标准 OPF 上打封面标记补丁：properties 或 meta 两种方式"""
+        opf = _OPF.replace(
+            '<item id="img" href="cover.jpg" media-type="image/jpeg"/>',
+            f'<item id="img" href="cover.jpg" media-type="image/jpeg" {marker}/>',
+        )
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("META-INF/container.xml", _CONTAINER)
+            zf.writestr("OEBPS/content.opf", opf)
+            zf.writestr("OEBPS/ch1.xhtml", _CH1)
+            zf.writestr("OEBPS/ch2.xhtml", _CH2)
+            zf.writestr("OEBPS/cover.jpg", self._JPG)
+        return buf.getvalue()
+
+    def test_epub_cover_extracted_via_properties(self):
+        """EPUB3 风格：manifest properties 含 cover-image"""
+        book = parse_upload("book.epub", self._epub_with_cover('properties="cover-image"'))
+        assert book.cover is not None
+        data, media = book.cover
+        assert data == self._JPG
+        assert media == "image/jpeg"
+
+    def test_epub_cover_extracted_via_meta(self):
+        """EPUB2 风格：<meta name="cover" content="img">"""
+        opf = _OPF.replace(
+            "</metadata>",
+            '<meta name="cover" content="img"/></metadata>',
+        )
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("META-INF/container.xml", _CONTAINER)
+            zf.writestr("OEBPS/content.opf", opf)
+            zf.writestr("OEBPS/ch1.xhtml", _CH1)
+            zf.writestr("OEBPS/ch2.xhtml", _CH2)
+            zf.writestr("OEBPS/cover.jpg", self._JPG)
+        book = parse_upload("book.epub", buf.getvalue())
+        assert book.cover is not None and book.cover[0] == self._JPG
+
+    def test_epub_without_cover_reference(self):
+        """manifest 里有图片但没有任何封面引用 → 无封面，不影响解析"""
+        book = parse_upload("book.epub", _build_epub())
+        assert book.cover is None
+
+    def test_epub_cover_non_image_media_ignored(self):
+        """封面引用指向非图片 media-type → 忽略"""
+        opf = _OPF.replace(
+            '<item id="img" href="cover.jpg" media-type="image/jpeg"/>',
+            '<item id="img" href="cover.jpg" media-type="text/html" properties="cover-image"/>',
+        )
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("META-INF/container.xml", _CONTAINER)
+            zf.writestr("OEBPS/content.opf", opf)
+            zf.writestr("OEBPS/ch1.xhtml", _CH1)
+            zf.writestr("OEBPS/ch2.xhtml", _CH2)
+            zf.writestr("OEBPS/cover.jpg", self._JPG)
+        assert parse_upload("book.epub", buf.getvalue()).cover is None
+
 
 # ================= 数据库集成 =================
 
@@ -231,6 +295,61 @@ async def _make_user(db):
 
 @requires_db
 class TestPersonalBooksDB:
+    def test_cover_store_isolation_and_cleanup(self, tmp_path, monkeypatch):
+        """带内嵌封面的 EPUB：封面落盘、has_cover 标记、B 不可读、删除清理"""
+        from pathlib import Path
+
+        async def main():
+            from app.core.config import get_settings
+            from app.db.database import AsyncSessionLocal
+            from app.services.personal_book_service import PersonalBookService
+
+            settings = get_settings()
+            monkeypatch.setattr(settings, "PERSONAL_BOOKS_DIR", str(tmp_path))
+            jpg = b"\xff\xd8\xff\xe0" + b"coverdata" * 4
+            epub = TestPersonalParser()._epub_with_cover('properties="cover-image"')
+            # 把假 JPEG 替换成测试字节：直接重建
+            import zipfile as _zf
+            buf = io.BytesIO()
+            with _zf.ZipFile(buf, "w", _zf.ZIP_DEFLATED) as zf:
+                src = _zf.ZipFile(io.BytesIO(epub))
+                for name in src.namelist():
+                    zf.writestr(name, jpg if name.endswith("cover.jpg") else src.read(name))
+
+            async with AsyncSessionLocal() as db:
+                user_a, _ = await _make_user(db)
+                user_b, _ = await _make_user(db)
+                service = PersonalBookService(db)
+
+                book, _ = await service.create_book(user_a, "withcover.epub", buf.getvalue())
+                assert book.cover_ext == ".jpg"
+                assert book.has_cover is True
+
+                # 封面文件已落盘，内容一致；本人可获取路径
+                cover_file = (
+                    Path(tmp_path) / str(user_a.id) / "covers" / f"{book.id}.jpg"
+                )
+                assert cover_file.exists() and cover_file.read_bytes() == jpg
+                got = await service.get_cover_path(user_a, book.id)
+                assert Path(got) == cover_file
+
+                # B 无权访问封面
+                with pytest.raises(HTTPException) as exc:
+                    await service.get_cover_path(user_b, book.id)
+                assert exc.value.status_code == 404
+
+                # 无封面的书 404
+                plain, _ = await service.create_book(user_a, "plain.epub", _build_epub())
+                with pytest.raises(HTTPException) as exc:
+                    await service.get_cover_path(user_a, plain.id)
+                assert exc.value.status_code == 404
+
+                # 删除书籍 → 封面文件一并清理
+                await service.delete_book(user_a, book.id)
+                assert not cover_file.exists()
+
+        _run(main())
+
     def test_upload_isolation_progress_and_delete(self, tmp_path, monkeypatch):
         """用户 A 上传后可读；用户 B 全接口不可见；删除后数据与文件清理干净"""
         async def main():
@@ -376,6 +495,57 @@ class TestPersonalBooksDB:
                 await db.execute(User.__table__.delete().where(
                     User.id.in_([user.id, user_b.id])
                 ))
+                await db.commit()
+
+        _run(main())
+
+    def test_cover_backfill_for_legacy_books(self, tmp_path, monkeypatch):
+        """存量书籍（cover_ext 为空）首次访问列表时惰性补提取封面"""
+        from pathlib import Path
+
+        async def main():
+            from app.core.config import get_settings
+            from app.db.database import AsyncSessionLocal
+            from app.services.personal_book_service import PersonalBookService
+
+            settings = get_settings()
+            monkeypatch.setattr(settings, "PERSONAL_BOOKS_DIR", str(tmp_path))
+            jpg = b"\xff\xd8\xff\xe0" + b"legacy" * 4
+            import zipfile as _zf
+            epub = TestPersonalParser()._epub_with_cover('properties="cover-image"')
+            buf = io.BytesIO()
+            with _zf.ZipFile(buf, "w", _zf.ZIP_DEFLATED) as zf:
+                src = _zf.ZipFile(io.BytesIO(epub))
+                for name in src.namelist():
+                    zf.writestr(name, jpg if name.endswith("cover.jpg") else src.read(name))
+
+            async with AsyncSessionLocal() as db:
+                user, _ = await _make_user(db)
+                service = PersonalBookService(db)
+
+                book, _ = await service.create_book(user, "legacy.epub", buf.getvalue())
+                # 模拟旧数据：清掉 cover_ext 与封面文件
+                book.cover_ext = None
+                await db.commit()
+                cover_file = Path(tmp_path) / str(user.id) / "covers" / f"{book.id}.jpg"
+                if cover_file.exists():
+                    cover_file.unlink()
+                await db.refresh(book)
+                assert book.cover_ext is None
+
+                # 首次访问列表 → 自动回填
+                rows = await service.list_books(user)
+                assert rows[0].has_cover is True
+                assert cover_file.exists() and cover_file.read_bytes() == jpg
+
+                # 再次访问：已回填，不再重复处理（仍正常返回）
+                rows = await service.list_books(user)
+                assert rows[0].has_cover is True
+
+                # 清理
+                await service.delete_book(user, book.id)
+                from app.models.user import User
+                await db.execute(User.__table__.delete().where(User.id == user.id))
                 await db.commit()
 
         _run(main())

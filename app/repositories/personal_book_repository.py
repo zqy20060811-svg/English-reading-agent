@@ -21,6 +21,16 @@ class PersonalBookRepository:
         )
         return list(result.scalars().all())
 
+    async def update_cover_ext(self, book_id: int, cover_ext: str) -> None:
+        """回填内嵌封面扩展名（存量书籍惰性迁移用）"""
+        result = await self.db.execute(
+            select(PersonalBook).where(PersonalBook.id == book_id)
+        )
+        book = result.scalars().first()
+        if book is not None:
+            book.cover_ext = cover_ext
+            await self.db.flush()
+
     async def get_owned(self, personal_book_id: int, user_id: int) -> PersonalBook | None:
         """按用户取书：查不到即视为不存在（不区分「他人的书」与「不存在」）"""
         result = await self.db.execute(

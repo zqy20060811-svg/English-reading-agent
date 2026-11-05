@@ -5,6 +5,7 @@
 """
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 
 from app.core.config import get_settings
 from app.schemas.personal_analysis import (
@@ -21,6 +22,7 @@ from app.schemas.personal_book import (
     PersonalProgressOut,
     PersonalProgressUpdate,
 )
+from app.services.cover_service import media_type_of
 from app.services.personal_analysis_service import (
     PersonalAnalysisService,
     get_personal_analysis_service,
@@ -33,13 +35,20 @@ from app.services.personal_prediction_service import (
     PersonalPredictionService,
     get_personal_prediction_service,
 )
-from app.services.user_service import get_current_user
+from app.services.user_service import (
+    get_current_user,
+    get_current_user_flexible,
+)
 
 router = APIRouter(
     prefix="/personal/books",
     tags=["个人书籍"],
     dependencies=[Depends(get_current_user)],
 )
+
+# 封面路由单独挂载：供 <img> 标签加载，无法携带 Authorization 头，
+# 使用 get_current_user_flexible（Bearer 头或 ?token= 均可）
+cover_router = APIRouter(prefix="/personal/books", tags=["个人书籍"])
 
 _CHUNK = 1024 * 1024
 
@@ -115,6 +124,25 @@ async def delete_personal_book(
 ):
     """删除个人书籍：连带清理章节、阅读进度与磁盘原始文件"""
     await service.delete_book(current_user, personal_book_id)
+
+
+@cover_router.get("/{personal_book_id}/cover")
+async def get_personal_book_cover(
+    personal_book_id: int,
+    service: PersonalBookService = Depends(get_personal_book_service),
+    current_user=Depends(get_current_user_flexible),
+):
+    """个人书籍内嵌封面图（仅本人可访问；无封面 404，前端回退默认占位样式）
+
+    独立路由不走 Bearer 头全局鉴权：<img> 标签带不了请求头，
+    前端通过 ?token=<jwt> 传递，后端同样校验 JWT + Redis 存在性。
+    """
+    path = await service.get_cover_path(current_user, personal_book_id)
+    return FileResponse(
+        path,
+        media_type=media_type_of(path),
+        headers={"Cache-Control": "private, max-age=31536000, immutable"},
+    )
 
 
 @router.get("/{personal_book_id}/chapters", response_model=list[PersonalChapterOut])

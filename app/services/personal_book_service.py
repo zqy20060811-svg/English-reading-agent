@@ -29,7 +29,20 @@ from app.schemas.personal_book import (
     PersonalProgressOut,
     PersonalProgressUpdate,
 )
-from app.services.personal_parser import ParseError, parse_upload, word_count
+from app.services.personal_parser import (
+    ParseError,
+    extract_epub_cover,
+    parse_upload,
+    word_count,
+)
+
+# 封面 media_type → 落盘扩展名（不在表内的类型不落盘）
+_COVER_EXT_BY_MEDIA = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+}
 
 
 class PersonalBookService:
@@ -86,6 +99,9 @@ class PersonalBookService:
         storage_path = await asyncio.to_thread(
             self._store_file, user.id, parsed.source_type, data
         )
+        # 内嵌封面（仅 EPUB 可能携带）：先算扩展名，入库后按 book.id 落盘
+        cover_ext = _COVER_EXT_BY_MEDIA.get(parsed.cover[1]) if parsed.cover else None
+        cover_path: Path | None = None
         try:
             book = await self.repo.create(
                 user_id=user.id,
@@ -97,9 +113,14 @@ class PersonalBookService:
                 file_size=len(data),
                 content_sha256=sha,
                 storage_path=str(storage_path),
+                cover_ext=cover_ext,
                 word_count=total_words,
                 chapter_count=len(parsed.chapters),
             )
+            if cover_ext:
+                cover_path = await asyncio.to_thread(
+                    self._store_cover, user.id, book.id, cover_ext, parsed.cover[0]
+                )
             await self.repo.add_chapters(book.id, parsed.chapters, word_counts)
             await self.db.commit()
             await self.db.refresh(book)
@@ -107,8 +128,20 @@ class PersonalBookService:
             await self.db.rollback()
             # 入库失败时清理已落盘文件，避免孤儿文件占用空间
             await asyncio.to_thread(self._remove_file, storage_path)
+            if cover_path is not None:
+                await asyncio.to_thread(self._remove_file, cover_path)
             raise
         return book, False
+
+    def _store_cover(self, user_id: int, book_id: int, ext: str, data: bytes) -> Path:
+        """内嵌封面落盘：data/personal/{user_id}/covers/{book_id}{ext}"""
+        base = Path(self.settings.PERSONAL_BOOKS_DIR) / str(user_id) / "covers"
+        base.mkdir(parents=True, exist_ok=True)
+        target = base / f"{book_id}{ext}"
+        tmp = target.with_suffix(target.suffix + ".tmp")
+        tmp.write_bytes(data)
+        os.replace(tmp, target)
+        return target
 
     def _store_file(self, user_id: int, source_type: str, data: bytes) -> Path:
         """原始文件落盘：路径由 UUID 生成（不使用用户文件名，杜绝路径穿越）"""
@@ -137,10 +170,51 @@ class PersonalBookService:
 
     async def list_books(self, user: User) -> list[PersonalBookOut]:
         rows = await self.repo.list_by_user(user.id)
+        await self._backfill_covers(user.id, rows)
         return [PersonalBookOut.model_validate(r) for r in rows]
 
     async def get_book(self, user: User, personal_book_id: int) -> PersonalBookOut:
-        return PersonalBookOut.model_validate(await self._get_owned(user, personal_book_id))
+        book = await self._get_owned(user, personal_book_id)
+        await self._backfill_covers(user.id, [book])
+        return PersonalBookOut.model_validate(book)
+
+    async def _backfill_covers(self, user_id: int, books: list) -> None:
+        """存量书籍惰性回填内嵌封面。
+
+        封面提取功能上线前上传的书没有 cover_ext，首次被访问时从原始
+        EPUB 文件补提取一次（轻量，只读 zip 内几个 XML 和封面图）；
+        成功后写盘并更新记录。失败静默跳过，不影响列表/详情返回。
+        """
+        pending = [
+            b for b in books
+            if b.source_type == "epub" and not b.cover_ext
+        ]
+        if not pending:
+            return
+        updated = False
+        for book in pending:
+            path = Path(book.storage_path)
+            if not path.exists():
+                continue
+            try:
+                data = await asyncio.to_thread(path.read_bytes)
+                cover = await asyncio.to_thread(extract_epub_cover, data)
+            except OSError:
+                continue
+            ext = _COVER_EXT_BY_MEDIA.get(cover[1]) if cover else None
+            if not ext:
+                continue  # 无封面或类型不支持：不再重复尝试
+            try:
+                await asyncio.to_thread(
+                    self._store_cover, user_id, book.id, ext, cover[0]
+                )
+            except OSError:
+                continue
+            book.cover_ext = ext
+            await self.repo.update_cover_ext(book.id, ext)
+            updated = True
+        if updated:
+            await self.db.commit()
 
     async def list_chapters(self, user: User, personal_book_id: int) -> list[PersonalChapterOut]:
         await self._get_owned(user, personal_book_id)
@@ -164,8 +238,28 @@ class PersonalBookService:
     async def delete_book(self, user: User, personal_book_id: int) -> None:
         book = await self._get_owned(user, personal_book_id)
         path = Path(book.storage_path)
+        cover_path = self._cover_path(book) if book.cover_ext else None
         await self.repo.delete(book)          # 章节与进度随外键 CASCADE + 显式删除
         await asyncio.to_thread(self._remove_file, path)
+        if cover_path is not None:            # 内嵌封面文件一并清理
+            await asyncio.to_thread(self._remove_file, cover_path)
+
+    def _cover_path(self, book: PersonalBook) -> Path:
+        """封面文件磁盘路径（调用方需先确认 cover_ext 非空）"""
+        return (
+            Path(self.settings.PERSONAL_BOOKS_DIR)
+            / str(book.user_id) / "covers" / f"{book.id}{book.cover_ext}"
+        )
+
+    async def get_cover_path(self, user: User, personal_book_id: int) -> Path:
+        """返回封面文件路径；无封面或文件缺失时 404，由前端回退占位样式"""
+        book = await self._get_owned(user, personal_book_id)
+        if not book.cover_ext:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "该书籍没有封面")
+        path = self._cover_path(book)
+        if not path.exists():
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "封面文件缺失")
+        return path
 
     # ---------- 阅读进度 ----------
 

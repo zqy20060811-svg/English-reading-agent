@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -146,6 +146,35 @@ async def get_current_user(
 ) -> User:
     """依赖项：从 Authorization: Bearer <token> 解析当前用户"""
     token = credentials.credentials
+    return await _resolve_user(token, db)
+
+
+async def get_current_user_flexible(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(
+        HTTPBearer(auto_error=False)
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """依赖项：支持 Authorization 头或 ?token= 查询参数两种方式鉴权。
+
+    查询参数方式仅供 <img>/<a> 等无法携带请求头的资源加载场景
+    （如个人书籍封面图），普通 API 仍应使用标准 Bearer 头。
+    """
+    token = request.query_params.get("token") or (
+        credentials.credentials if credentials else None
+    )
+    if not token:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "缺少访问令牌",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return await _resolve_user(token, db)
+
+
+async def _resolve_user(token: str, db: AsyncSession) -> User:
+    """token → 用户的公共校验流程（JWT 有效性 + Redis 存在性 + 禁用状态）"""
     user_id = decode_access_token(token)
     if user_id is None:
         raise HTTPException(

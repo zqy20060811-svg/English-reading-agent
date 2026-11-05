@@ -41,13 +41,14 @@ class ParseError(Exception):
 
 @dataclass
 class ParsedBook:
-    """解析结果：元数据 + 有序章节正文"""
+    """解析结果：元数据 + 有序章节正文 + 可选内嵌封面"""
 
     title: str
     author: str
     language: str
     source_type: str            # epub / txt
     chapters: list[tuple[str, str]]  # [(章节标题, 正文)]
+    cover: tuple[bytes, str] | None = None  # (封面图片字节, media_type)，无封面为 None
 
 
 # ================= 通用工具 =================
@@ -202,6 +203,49 @@ def _epub_metadata(opf: ET.Element) -> dict[str, str]:
     return out
 
 
+COVER_MAX_BYTES = 3 * 1024 * 1024  # 单张封面上限：真实封面远小于此，防御异常文件
+
+
+def _epub_cover(
+    zf: zipfile.ZipFile,
+    names: set[str],
+    opf: ET.Element,
+    opf_ns: str,
+    manifest: dict[str, tuple[str, str]],
+    opf_path: str,
+    total: list[int],
+) -> tuple[bytes, str] | None:
+    """提取 EPUB 内嵌封面：优先 manifest properties 含 cover-image 的项，
+    其次 EPUB2 的 <meta name="cover"> 指向项。找不到/不合法返回 None（不影响解析）。"""
+    cover_id: str | None = None
+    for item in opf.findall(f".//{opf_ns}item"):
+        props = (item.get("properties") or "").split()
+        if "cover-image" in props:
+            cover_id = item.get("id")
+            break
+    if cover_id is None:
+        meta_cover = opf.find(f".//{opf_ns}meta[@name='cover']")
+        if meta_cover is None:  # 个别制书工具不写 opf 命名空间
+            meta_cover = opf.find(".//meta[@name='cover']")
+        if meta_cover is not None:
+            cover_id = meta_cover.get("content")
+    if not cover_id or cover_id not in manifest:
+        return None
+    href, media = manifest[cover_id]
+    if not media.startswith("image/"):
+        return None
+    path = _safe_member_name(
+        posixpath.normpath(posixpath.join(posixpath.dirname(opf_path), href))
+    )
+    if path not in names:
+        return None
+    try:
+        data = _read_capped(zf, path, COVER_MAX_BYTES, total)
+    except ParseError:  # 封面过大不该导致整本书解析失败
+        return None
+    return (data, media) if data else None
+
+
 def parse_epub(data: bytes, fallback_title: str) -> ParsedBook:
     """解析 EPUB：container.xml → OPF(manifest/spine) → 按 spine 顺序提取正文"""
     try:
@@ -270,6 +314,8 @@ def parse_epub(data: bytes, fallback_title: str) -> ParsedBook:
             title = parser.heading_text() or f"Chapter {idx}"
             chapters.append((title[:255], body))
 
+        cover = _epub_cover(zf, names, opf, opf_ns, manifest, opf_path, total)
+
     if not chapters:
         raise ParseError("未能从 EPUB 中提取到正文（可能为空文件或仅含图片）")
 
@@ -289,10 +335,48 @@ def parse_epub(data: bytes, fallback_title: str) -> ParsedBook:
         language=(meta.get("language") or "en")[:16],
         source_type="epub",
         chapters=chapters,
+        cover=cover,
     )
 
 
 # ================= TXT =================
+
+
+def extract_epub_cover(data: bytes) -> tuple[bytes, str] | None:
+    """轻量提取 EPUB 内嵌封面（不解析正文章节）。
+
+    供存量书籍惰性回填封面使用；文件损坏/无封面返回 None，不抛异常。
+    """
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile:
+        return None
+    with zf:
+        try:
+            names = {_safe_member_name(i.filename) for i in zf.infolist()}
+            if "META-INF/container.xml" not in names:
+                return None
+            total = [0]
+            container = _xml_root(
+                _read_capped(zf, "META-INF/container.xml", XML_MAX_BYTES, total),
+                "container.xml",
+            )
+            rootfiles = [e for e in container.iter() if e.get("full-path")]
+            if not rootfiles:
+                return None
+            opf_path = _safe_member_name(unquote(rootfiles[0].get("full-path") or ""))
+            if not opf_path or opf_path not in names:
+                return None
+            opf = _xml_root(_read_capped(zf, opf_path, XML_MAX_BYTES, total), "OPF")
+            opf_ns = "{http://www.idpf.org/2007/opf}"
+            manifest: dict[str, tuple[str, str]] = {}
+            for item in opf.findall(f".//{opf_ns}item"):
+                item_id, href = item.get("id"), item.get("href")
+                if item_id and href:
+                    manifest[item_id] = (unquote(href), (item.get("media-type") or "").lower())
+            return _epub_cover(zf, names, opf, opf_ns, manifest, opf_path, total)
+        except (ParseError, zipfile.BadZipFile, ET.ParseError, KeyError, OSError):
+            return None
 
 
 def parse_txt(data: bytes, fallback_title: str) -> ParsedBook:

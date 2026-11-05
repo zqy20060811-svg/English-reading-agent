@@ -30,8 +30,13 @@ class PersonalBook(Base):
     file_size: Mapped[int] = mapped_column(Integer, default=0)  # 字节
     content_sha256: Mapped[str] = mapped_column(String(64))     # 内容哈希，用于去重
     storage_path: Mapped[str] = mapped_column(String(512))      # 原始文件磁盘路径
+    cover_ext: Mapped[str | None] = mapped_column(String(8), default=None)  # 内嵌封面扩展名（如 .jpg），None=无封面
     word_count: Mapped[int] = mapped_column(Integer, default=0)
     chapter_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True
     )
+
+    @property
+    def has_cover(self) -> bool:
+        return bool(self.cover_ext)

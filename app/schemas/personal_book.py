@@ -18,6 +18,7 @@ class PersonalBookOut(BaseModel):
     word_count: int
     chapter_count: int
     created_at: datetime
+    has_cover: bool = False  # 是否有内嵌封面（前端决定用封面图还是默认占位）
 
 
 class PersonalBookUploadOut(PersonalBookOut):

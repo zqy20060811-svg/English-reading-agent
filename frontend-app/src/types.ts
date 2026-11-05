@@ -74,7 +74,22 @@ export interface VocabItem {
   word: string
   context_sentence: string | null
   chapter_index: number
+  group_id: number | null // 自定义分组（null=未分组）
   created_at: string
+}
+
+// 生词分组（附词数）
+export interface VocabGroup {
+  id: number
+  name: string
+  position: number
+  word_count: number
+}
+
+// 生词本批量释义结果（word → 释义，查不到为 null）
+export interface VocabDefinitions {
+  definitions: Record<string, WordLookup | null>
+  llm_queried: string[]
 }
 
 // 书签条目
@@ -148,6 +163,7 @@ export interface PersonalBook {
   word_count: number
   chapter_count: number
   created_at: string
+  has_cover?: boolean // EPUB 内嵌封面已提取（/personal/books/{id}/cover）
 }
 
 export interface PersonalBookUploadOut extends PersonalBook {

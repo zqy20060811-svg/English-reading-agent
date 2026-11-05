@@ -14,6 +14,7 @@ from app.api.routes.covers import router as covers_router
 from app.api.routes.level_test import router as level_test_router
 from app.api.routes.me import router as me_router
 from app.api.routes.personal import router as personal_router
+from app.api.routes.personal import cover_router as personal_cover_router
 from app.api.routes.reading import router as reading_router
 from app.api.routes.translate import router as translate_router
 from app.api.routes.vocabulary import router as vocabulary_router
@@ -75,6 +76,7 @@ app.include_router(me_router)
 app.include_router(vocabulary_router)
 app.include_router(bookmark_router)
 app.include_router(personal_router)
+app.include_router(personal_cover_router)
 app.include_router(admin_router)
 
 

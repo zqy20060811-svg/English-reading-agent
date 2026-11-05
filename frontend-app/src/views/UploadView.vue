@@ -3,8 +3,9 @@
 // 上传后服务端自动创建全书 AI 分析任务：任务状态徽标 + 轮询 + 全书报告弹窗
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { api, apiErrorMessage } from '../api/client'
+import { api, apiErrorMessage, API_BASE, getToken } from '../api/client'
 import { toast } from '../store'
+import BookCover from '../components/BookCover.vue'
 import type {
   PersonalAnalysisTask,
   PersonalBook,
@@ -278,10 +279,15 @@ function formatSize(bytes: number): string {
       <ul v-else class="space-y-3">
         <li v-for="b in books" :key="b.id"
           class="rounded-2xl bg-white border border-neutral-100 shadow-card p-4 flex items-center gap-4 flex-wrap">
-          <!-- 类型图标 -->
-          <div class="w-11 h-11 shrink-0 rounded-xl bg-accent-50 flex items-center justify-center"
-            :title="b.original_filename">
-            <i class="fa text-lg text-accent-500" :class="b.source_type === 'epub' ? 'fa-file-pdf-o' : 'fa-file-text-o'"></i>
+          <!-- 书本封面：有内嵌封面用图，否则走 BookCover 默认占位；点击进入阅读 -->
+          <div class="w-14 h-20 shrink-0 cursor-pointer" :title="b.title" @click="openReader(b)">
+            <BookCover class="rounded-lg shadow-sm" :book="{
+              title: b.title,
+              author: b.author,
+              cover_url: b.has_cover
+                ? `${API_BASE}/personal/books/${b.id}/cover?token=${encodeURIComponent(getToken() || '')}`
+                : null,
+            }" />
           </div>
           <!-- 信息 -->
           <div class="flex-1 min-w-[200px]">
