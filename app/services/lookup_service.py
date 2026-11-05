@@ -81,6 +81,18 @@ class LookupService:
         self.redis = redis
         self.db = db  # 用量落库用（旁路统计）
 
+    async def lookup_cached_only(self, word: str) -> WordLookupResponse | None:
+        """仅读缓存不调模型：生词本批量释义用，未命中/无效词返回 None"""
+        w = word.strip().lower()
+        if not w or len(w) > 64 or not _WORD_PATTERN.match(w):
+            return None
+        cached = await self.redis.get(f"lookup:word:{w}")
+        if not cached:
+            return None
+        result = _parse_lookup_json(cached, w)
+        result.cached = True
+        return result
+
     async def lookup(self, user_id: int, word: str) -> WordLookupResponse:
         word = normalize_lookup_word(word)
         cache_key = f"lookup:word:{word}"

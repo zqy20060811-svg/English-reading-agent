@@ -25,6 +25,10 @@ class UserVocabulary(Base):
     # 收录时的上下文例句（可选，便于回忆词义场景）
     context_sentence: Mapped[str | None] = mapped_column(Text, nullable=True)
     chapter_index: Mapped[int] = mapped_column(Integer, default=1)  # 收录时所在章节
+    # 自定义分组（可空 = 未分组）；用户删除分组时词回落到未分组
+    group_id: Mapped[int | None] = mapped_column(
+        ForeignKey("vocabulary_groups.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

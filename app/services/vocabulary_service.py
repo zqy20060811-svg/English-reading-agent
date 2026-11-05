@@ -1,4 +1,4 @@
-"""生词本业务逻辑：收录 / 列表 / 删除，附带书籍来源信息。"""
+"""生词本业务逻辑：收录 / 列表 / 删除 / 自定义分组，附带书籍来源信息。"""
 
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,12 +7,26 @@ from app.db.database import get_db
 from app.models.user import User
 from app.repositories.book_repository import BookRepository
 from app.repositories.vocabulary_repository import VocabularyRepository
-from app.schemas.study import VocabularyAddRequest, VocabularyOut
+from app.schemas.study import (
+    MAX_VOCAB_GROUPS,
+    VocabularyAddRequest,
+    VocabularyGroupCreate,
+    VocabularyGroupOut,
+    VocabularyGroupUpdate,
+    VocabularyMoveRequest,
+    VocabularyOut,
+)
 
 
 def normalize_word(word: str) -> str:
     """生词归一化：去首尾空白并转小写，保证同一单词跨大小写去重"""
     return word.strip().lower()
+
+
+def _group_out(group, word_count: int) -> VocabularyGroupOut:
+    return VocabularyGroupOut(
+        id=group.id, name=group.name, position=group.position, word_count=word_count
+    )
 
 
 class VocabularyService:
@@ -70,6 +84,64 @@ class VocabularyService:
         removed = await self.vocab_repo.remove(user.id, word_id)
         if not removed:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "生词不存在或已删除")
+
+    # ---------- 自定义分组 ----------
+
+    async def list_groups(self, user: User) -> list[VocabularyGroupOut]:
+        pairs = await self.vocab_repo.list_groups(user.id)
+        return [_group_out(g, cnt) for g, cnt in pairs]
+
+    async def create_group(self, user: User, req: VocabularyGroupCreate) -> VocabularyGroupOut:
+        name = req.name.strip()
+        if not name:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "分组名不能为空")
+        if await self.vocab_repo.count_groups(user.id) >= MAX_VOCAB_GROUPS:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, f"分组数量已达上限（{MAX_VOCAB_GROUPS} 个）"
+            )
+        if await self.vocab_repo.get_group_by_name(user.id, name) is not None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"分组「{name}」已存在")
+        group = await self.vocab_repo.add_group(user.id, name, position=0)
+        return _group_out(group, 0)
+
+    async def update_group(
+        self, user: User, group_id: int, req: VocabularyGroupUpdate
+    ) -> VocabularyGroupOut:
+        group = await self.vocab_repo.get_group(user.id, group_id)
+        if group is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "分组不存在")
+        if req.name is not None:
+            name = req.name.strip()
+            if not name:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, "分组名不能为空")
+            other = await self.vocab_repo.get_group_by_name(user.id, name)
+            if other is not None and other.id != group_id:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, f"分组「{name}」已存在")
+        group = await self.vocab_repo.update_group(group, req.name, req.position)
+        pairs = {g.id: c for g, c in await self.vocab_repo.list_groups(user.id)}
+        return _group_out(group, pairs.get(group.id, 0))
+
+    async def delete_group(self, user: User, group_id: int) -> None:
+        group = await self.vocab_repo.get_group(user.id, group_id)
+        if group is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "分组不存在")
+        await self.vocab_repo.delete_group(group)  # 组内生词自动回落未分组
+
+    async def move_word(self, user: User, word_id: int, group_id: int | None) -> VocabularyOut:
+        """移动生词到分组（None=未分组）"""
+        if group_id is not None and await self.vocab_repo.get_group(user.id, group_id) is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "目标分组不存在")
+        if not await self.vocab_repo.move_word(user.id, word_id, group_id):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "生词不存在")
+        row = next(
+            r for r in await self.vocab_repo.list_by_user(user.id) if r.id == word_id
+        )
+        return VocabularyOut(
+            id=row.id, book_id=row.book_id, book_title="",
+            word=row.word, context_sentence=row.context_sentence,
+            chapter_index=row.chapter_index, group_id=row.group_id,
+            created_at=row.created_at,
+        )
 
 
 def get_vocabulary_service(db: AsyncSession = Depends(get_db)) -> VocabularyService:

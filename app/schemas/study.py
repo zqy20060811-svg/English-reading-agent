@@ -35,7 +35,56 @@ class VocabularyOut(BaseModel):
     word: str
     context_sentence: str | None
     chapter_index: int
+    group_id: int | None = None  # 自定义分组（null=未分组）
     created_at: datetime
+
+
+class VocabularyDefinitionsRequest(BaseModel):
+    """生词本批量释义请求（生词本页一次性拉取可见词的释义）"""
+
+    words: list[str] = Field(min_length=1, max_length=50, description="待查单词列表（最多 50 个）")
+
+
+class VocabularyDefinitionsOut(BaseModel):
+    """生词本批量释义结果：word → 释义；查不到（配额超限/无效词）为 null"""
+
+    definitions: dict[str, WordLookupResponse | None]
+    llm_queried: list[str] = Field(default_factory=list, description="本次实际调用模型查询的词")
+
+
+# ================= 生词本自定义分组 =================
+
+MAX_VOCAB_GROUPS = 20  # 每用户分组数上限（防滥用，生词本分组不需要太多）
+
+
+class VocabularyGroupCreate(BaseModel):
+    """新建分组"""
+
+    name: str = Field(min_length=1, max_length=32, description="分组名（用户内唯一）")
+
+
+class VocabularyGroupUpdate(BaseModel):
+    """更新分组（重命名 / 调整顺序；字段均可选）"""
+
+    name: str | None = Field(default=None, min_length=1, max_length=32)
+    position: int | None = Field(default=None, ge=0, le=9999)
+
+
+class VocabularyGroupOut(BaseModel):
+    """分组条目（附词数，供分组筛选栏展示）"""
+
+    model_config = {"from_attributes": True}
+
+    id: int
+    name: str
+    position: int
+    word_count: int = 0
+
+
+class VocabularyMoveRequest(BaseModel):
+    """移动生词到分组（group_id 为空 = 移回未分组）"""
+
+    group_id: int | None = Field(default=None, gt=0)
 
 
 # ================= 书签 =================
